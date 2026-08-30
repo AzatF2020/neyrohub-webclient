@@ -1,11 +1,123 @@
 ---
-import Welcome from '../components/Welcome.astro';
+import Footer from '../components/Footer.astro';
+import Header from '../components/Header.astro';
 import Layout from '../layouts/Layout.astro';
 
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+// Публичная страница рендерится на сервере: контент виден поисковикам, шапка знает про сессию.
+// Если персонализация не нужна, добавьте `export const prerender = true` — страница уедет в статику.
+const user = Astro.locals.user;
+
+const features = [
+	{
+		title: 'Генерация за секунды',
+		text: 'Опишите задачу словами — модель вернёт результат в том же окне, без очередей и настроек.',
+	},
+	{
+		title: 'История под рукой',
+		text: 'Все запросы и результаты сохраняются в кабинете: можно вернуться, повторить, доработать.',
+	},
+	{
+		title: 'Доступ по API',
+		text: 'Тот же движок доступен по HTTP — встраивайте генерацию в свои продукты и сценарии.',
+	},
+];
+
+const steps = [
+	{ number: '01', title: 'Опишите задачу', text: 'Обычный текст — промпт, ссылка или пара слов.' },
+	{ number: '02', title: 'Выберите модель', text: 'Скорость или качество: подбираем под задачу.' },
+	{ number: '03', title: 'Заберите результат', text: 'Скачайте или отправьте дальше по API.' },
+];
 ---
 
-<Layout>
-	<Welcome />
+<Layout title="NebulaAI — генерация нейросетями">
+	<Header />
+
+	<main>
+		<section class="relative overflow-hidden">
+			<div class="glow pointer-events-none absolute inset-x-0 top-0 h-[28rem]" aria-hidden="true">
+			</div>
+
+			<div class="relative mx-auto w-full max-w-5xl px-4 pt-20 pb-16 sm:pt-28">
+				<span
+					class="inline-flex items-center rounded-full border border-border px-3 py-1 text-xs text-muted-foreground"
+				>
+					AI-генерация текста и изображений
+				</span>
+
+				<h1
+					class="mt-6 max-w-2xl text-4xl font-semibold tracking-tight text-balance sm:text-5xl sm:leading-[1.1]"
+				>
+					Нейросети, которые доводят задачу до результата
+				</h1>
+
+				<p class="mt-5 max-w-xl text-lg text-muted-foreground">
+					Опишите, что нужно получить. Остальное — генерация, история и доступ по API — уже
+					настроено.
+				</p>
+
+				<div class="mt-8 flex flex-wrap items-center gap-3">
+					{
+						user ? (
+							<a
+								href="/app"
+								class="inline-flex h-10 items-center rounded-md bg-primary px-5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+							>
+								Перейти в кабинет
+							</a>
+						) : (
+							<>
+								<a
+									href="/register"
+									class="inline-flex h-10 items-center rounded-md bg-primary px-5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+								>
+									Начать бесплатно
+								</a>
+								<a
+									href="/login"
+									class="inline-flex h-10 items-center rounded-md border border-border px-5 text-sm font-medium transition-colors hover:bg-muted"
+								>
+									Войти
+								</a>
+							</>
+						)
+					}
+				</div>
+			</div>
+		</section>
+
+		<section class="mx-auto w-full max-w-5xl px-4 pb-20">
+			<div class="grid gap-4 sm:grid-cols-3">
+				{
+					features.map((feature) => (
+						<article class="rounded-xl border border-border bg-card p-5">
+							<h2 class="text-[15px] font-medium">{feature.title}</h2>
+							<p class="mt-2 text-sm text-muted-foreground">{feature.text}</p>
+						</article>
+					))
+				}
+			</div>
+		</section>
+
+		<section class="border-t border-border/60">
+			<div class="mx-auto w-full max-w-5xl px-4 py-16">
+				<h2 class="text-sm font-medium tracking-wide text-muted-foreground uppercase">
+					Как это работает
+				</h2>
+
+				<ol class="mt-8 grid gap-8 sm:grid-cols-3">
+					{
+						steps.map((step) => (
+							<li>
+								<span class="text-xs font-medium text-primary">{step.number}</span>
+								<h3 class="mt-2 text-[15px] font-medium">{step.title}</h3>
+								<p class="mt-1.5 text-sm text-muted-foreground">{step.text}</p>
+							</li>
+						))
+					}
+				</ol>
+			</div>
+		</section>
+	</main>
+
+	<Footer />
 </Layout>

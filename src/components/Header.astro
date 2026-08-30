@@ -1,0 +1,111 @@
+---
+const user = Astro.locals.user;
+const pathname = Astro.url.pathname;
+---
+
+<header class="sticky top-0 z-10 border-b border-border/60 bg-background/80 backdrop-blur">
+	<div class="mx-auto flex h-14 w-full max-w-5xl items-center justify-between px-4">
+		<a href="/" class="inline-flex items-center gap-2.5">
+			<span
+				class="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground"
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					class="size-4"
+				>
+					<path
+						d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"
+					></path>
+				</svg>
+			</span>
+			<span class="text-[15px] font-semibold tracking-tight">NebulaAI</span>
+		</a>
+
+		<nav class="flex items-center gap-1">
+			<a
+				href="/tariffs"
+				aria-current={pathname === '/tariffs' ? 'page' : undefined}
+				class:list={[
+					'hidden h-9 items-center rounded-md px-3 text-sm transition-colors hover:bg-muted hover:text-foreground sm:inline-flex',
+					pathname === '/tariffs' ? 'text-foreground' : 'text-muted-foreground',
+				]}
+			>
+				Тарифы
+			</a>
+
+			<button
+				type="button"
+				data-theme-toggle
+				class="inline-flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+				aria-label="Сменить тему"
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					class="size-4 dark:hidden"
+				>
+					<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>
+				</svg>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					class="hidden size-4 dark:block"
+				>
+					<circle cx="12" cy="12" r="4"></circle>
+					<path d="M12 2v2M12 20v2M5 5l1.5 1.5M17.5 17.5 19 19M2 12h2M20 12h2M5 19l1.5-1.5M17.5 6.5 19 5"
+					></path>
+				</svg>
+			</button>
+
+			{
+				user ? (
+					<a
+						href="/app"
+						class="inline-flex h-9 items-center rounded-md bg-primary px-3.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+					>
+						Кабинет
+					</a>
+				) : (
+					<>
+						<a
+							href="/login"
+							class="inline-flex h-9 items-center rounded-md px-3 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+						>
+							Войти
+						</a>
+						<a
+							href="/register"
+							class="inline-flex h-9 items-center rounded-md bg-primary px-3.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+						>
+							Начать
+						</a>
+					</>
+				)
+			}
+		</nav>
+	</div>
+</header>
+
+<script>
+	import { currentTheme, setTheme } from '../lib/theme';
+
+	document.querySelector('[data-theme-toggle]')?.addEventListener('click', () => {
+		setTheme(currentTheme() === 'dark' ? 'light' : 'dark');
+	});
+</script>

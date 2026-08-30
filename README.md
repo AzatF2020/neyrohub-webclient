@@ -1,46 +1,174 @@
-# Astro Starter Kit: Basics
+# ai-front
+
+Astro + Vue: публичная часть рендерится на сервере, всё за логином — клиентское SPA.
+Авторизация — внешний бэкенд на [better-auth](https://better-auth.com) (`basePath: /api/auth`).
+
+## Запуск
 
 ```sh
-npm create astro@latest -- --template basics
+cp .env.example .env      # AUTH_ORIGIN должен указывать на бэкенд с better-auth
+npm install
+npm run dev               # http://localhost:5173 — порт совпадает с trustedOrigins бэкенда
 ```
 
-> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
+Продакшн: `npm run build && npm start` (адаптер `@astrojs/node`, standalone).
 
-## 🚀 Project Structure
+## Стек
 
-Inside of your Astro project, you'll see the following folders and files:
+| Слой | Чем |
+| --- | --- |
+| Страницы, SSR, прокси | Astro 7 (TypeScript) |
+| Интерфейс | Vue 3 `<script setup>` на JavaScript, без TS |
+| Роутинг SPA | vue-router (`/login`, `/register`, `/app/**`) |
+| Состояние | композаблы (`src/vue/composables`), без стора |
+| UI-кит | shadcn-vue + Tailwind CSS 4, иконки `@lucide/vue` |
+| Формы | vuelidate, сообщения — из i18n |
+| Языки | vue-i18n (`ru` по умолчанию, `en`) |
+| Даты | dayjs |
+| Разметка ответов | markdown-it + KaTeX (формулы) + highlight.js (код), типографика — prose |
+| HTTP | better-auth client для авторизации, axios для прикладного API |
+| Реалтайм | socket.io-client — статусы генераций, SSE через `fetch` — ответ текстовых моделей |
 
-```text
-/
-├── public/
-│   └── favicon.svg
-├── src
-│   ├── assets
-│   │   └── astro.svg
-│   ├── components
-│   │   └── Welcome.astro
-│   ├── layouts
-│   │   └── Layout.astro
-│   └── pages
-│       └── index.astro
-└── package.json
+## Как распределён рендеринг
+
+| Маршрут | Режим | Что происходит |
+| --- | --- | --- |
+| `/` | SSR | лендинг собирается на сервере, шапка знает про сессию |
+| `/login`, `/register` | оболочка + SPA | сервер отдаёт пустой `<div id="app">`, формы рисует Vue |
+| `/app/**` | оболочка + SPA | тот же экземпляр приложения, переходы без перезагрузки |
+| `/api/auth/**` | прокси | запросы уходят на бэкенд better-auth |
+| `/api/**` | прокси | остальное прикладное API бэкенда: `/api/chats` → `/chats` |
+
+`output: 'server'` — по умолчанию всё рендерится на сервере. Публичную страницу можно перевести
+в статику через `export const prerender = true`. Для оболочки SPA этого делать нельзя: на
+пререндеренном маршруте не выполняется middleware, а значит пропадает серверная проверка сессии.
+
+## Как устроена авторизация
+
+По умолчанию браузер работает только со своим origin, а Astro проксирует `/api/auth/*` на бэкенд
+(`src/pages/api/auth/[...all].ts`). За счёт этого нет CORS, httpOnly-кука сессии принадлежит домену
+фронта и доступна SSR-страницам. Прокси доносит до бэкенда `x-forwarded-for`, чтобы rate limit
+better-auth считал реальные IP, а не адрес сервера Astro.
+
+`src/middleware.ts` на каждый on-demand запрос запрашивает `/get-session` и кладёт результат в
+`Astro.locals.user` / `Astro.locals.session`; он же редиректит анонимов с `/app/**` на `/login`,
+а авторизованных — с `/login` и `/register` в кабинет. Клиентский guard в `src/vue/router.js`
+повторяет проверку уже в браузере: сессию могли отозвать после загрузки страницы.
+
+Альтернативный режим: заполните `PUBLIC_AUTH_BASE_URL` (например `http://localhost:8080/api/auth`) —
+тогда браузер ходит на бэкенд напрямую. В этом случае бэкенду нужен CORS с `credentials`, адрес фронта
+в `trustedOrigins`, а в проде — общий родительский домен для куки (`crossSubDomainCookies`).
+
+## Структура
+
+```
+src/
+├── components/
+│   ├── Header.astro            шапка лендинга, состояние берёт из Astro.locals
+│   ├── SpaRoot.astro           общая оболочка SPA + монтирование Vue
+│   └── ui/                     компоненты shadcn-vue (генерируются CLI)
+├── layouts/Layout.astro        html-каркас, шрифт, тема
+├── lib/
+│   ├── auth-client.js          better-auth клиент для браузера
+│   ├── auth-server.ts          чтение сессии на сервере + проброс заголовков
+│   ├── auth-types.ts           типы для Astro.locals
+│   ├── api.js                  axios-клиент прикладного API
+│   ├── chats.js                запросы чатов и сообщений, чтение SSE-стрима
+│   ├── markdown.js             renderMarkdown(): разметка ответа в HTML
+│   ├── neurals.js              справочник моделей, статусы задач, разбор output
+│   ├── datetime.js             dayjs с русской локалью
+│   ├── theme.js                светлая/тёмная тема
+│   └── utils.js                cn() для классов
+├── middleware.ts               сессия в locals + защита /app
+├── pages/
+│   ├── index.astro             публичный лендинг (SSR)
+│   ├── login.astro             оболочка SPA
+│   ├── register.astro          оболочка SPA
+│   ├── api/auth/[...all].ts    прокси на бэкенд better-auth
+│   ├── api/[...path].ts        прокси на прикладное API бэкенда
+│   └── app/[...path].astro     оболочка SPA для кабинета
+├── styles/global.css           Tailwind + токены темы
+└── vue/
+    ├── main.js                 создание и монтирование приложения
+    ├── App.vue                 корневой RouterView
+    ├── router.js               маршруты и guard
+    ├── i18n.js                 vue-i18n
+    ├── validators.js           правила vuelidate с сообщениями из i18n
+    ├── locales/                ru.js, en.js
+    ├── composables/            useSession, useSocket, useModels, useChats, useChat,
+    │                            useMarkdown, useMessageParams, useLightbox
+    ├── layouts/                AuthLayout, AccountLayout
+    ├── views/                  Login, Register, Dashboard, Chats, Chat, Profile, Security, NotFound
+    └── components/             Brand, ThemeToggle, FormField, ModelSelect, ChatComposer,
+                                ChatMessage (генерация), ChatReply (реплика чата)
 ```
 
-To learn more about the folder structure of an Astro project, refer to [our guide on project structure](https://docs.astro.build/en/basics/project-structure/).
+## Чаты и генерации
 
-## 🧞 Commands
+Чат — это лента запросов к одной модели: `type` и `model` выбираются один раз при создании и
+дальше не меняются. Хранилищ на бэкенде два, и от типа чата зависит, из какого придёт лента:
 
-All commands are run from the root of the project, from a terminal:
+| Тип чата | Таблица | Запись | Компонент ленты |
+| --- | --- | --- | --- |
+| `AiImages`, `AiVideos` | `messages` | обмен целиком: `input`, `output`, `taskId`, `status` | `ChatMessage` |
+| `AiTextGenerate` | `chat_messages` | одна реплика: `role`, `content`, `params`, `usage` | `ChatReply` |
 
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `npm install`             | Installs dependencies                            |
-| `npm run dev`             | Starts local dev server at `localhost:4321`      |
-| `npm run build`           | Build your production site to `./dist/`          |
-| `npm run preview`         | Preview your build locally, before deploying     |
-| `npm run astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `npm run astro -- --help` | Get help using the Astro CLI                     |
+Роут при этом один — `GET /chats/:id/messages` сам выбирает таблицу по типу чата. Разбор
+параметров у обоих компонентов общий: `useMessageParams` читает их из `input` или `params`.
 
-## 👀 Want to learn more?
+| Что | Куда идёт запрос |
+| --- | --- |
+| Справочник моделей | `GET /neurals[?search=]` → `{ models: { AiImages: [...] } }` — поиск по слагу и названию на бэкенде |
+| Список чатов | `GET /chats?page&per_page&last_message=true` — превью карточек едут в поле `messages` |
+| Лента | `GET /chats/:id/messages` |
+| Отправка (картинки, видео) | `POST /chats/:id/messages/create` с `{ type, model, options }` |
+| Отправка (текст) | `POST /chats/:id/messages/stream`, те же поля |
 
-Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
+Картинки и видео уходят в очередь: в ответе `create` уже есть запись с `taskId`, по которому
+лента ждёт результат. Браузер подключается к `PUBLIC_SOCKET_URL` напрямую (gateway отдаёт
+`CORS: *`), заходит в комнату `chat:<id>` (`emit('join', room)`) и слушает `task.status` и
+`task.progress`. Соединение одно на страницу — им заведует `useSocket`. При уходе из чата клиент шлёт `leave`, а события, уже ушедшие в полёт,
+отсеиваются по полю `room`. На случай упавшего сокета `useChat` перечитывает сообщения раз в
+шесть секунд, пока есть незавершённые задачи.
+
+Текстовые модели отвечают потоком в том же запросе, задачи и `taskId` у них нет, поэтому сокет
+и опрос таким чатам не нужны. Запрос — POST, а значит `EventSource` не подходит: `streamMessage`
+в `src/lib/chats.js` читает тело `fetch` сам и разбирает кадры SSE (`event: delta` с куском текста,
+`done` с итоговым сообщением, `error` с причиной). Обе реплики бэкенд создаёт в начале стрима,
+поэтому `useChat` до его конца держит черновик пары в форме записей `chat_messages` и наполняет
+ответ дельтами, а по завершении перечитывает страницу и показывает уже сохранённые записи.
+Кнопка «Остановить» обрывает соединение через `AbortController` — бэкенд по закрытому соединению
+отменяет запрос к провайдеру и сохраняет то, что модель успела написать.
+
+Ответ модели приходит разметкой, поэтому в ленте его рисует `renderMarkdown` из
+`src/lib/markdown.js` — единственная функция модуля: markdown-it с `html: false` (теги из ответа
+показываются текстом, а не исполняются), формулы через KaTeX, блоки кода через highlight.js,
+ссылки — с `target="_blank"`. Разделители формул модели пишут по-разному, поэтому скобки TeX
+(`\(…\)`, `\[…\]`) приводятся к долларам до разбора: markdown-it иначе принимает их за
+экранированную пунктуацию и съедает слэши. Замена обходит стороной блоки кода, код в кавычках
+и уже размеченные формулы. Вместе эти пакеты весят больше самого экрана чата,
+поэтому модуль лежит в отдельном чанке и подгружается композаблом `useMarkdown` при первом
+ответе; пока он в пути, текст виден как есть. Оформление — класс `prose` и правила `.markdown`
+в `src/styles/global.css` (они намеренно вне `@layer`, иначе слой утилит с `prose` их перебивает).
+
+`output` генерации — массив ссылок у изображений и видео; разбирает его `readOutput` в
+`src/lib/neurals.js`. У реплики чата ссылок нет: текст лежит в `content`, расход токенов — в
+`usage`. Параметры сверх промпта (`aspect_ratio`, `resolution`, `reasoning`, `web_search`) бэкенд
+описывает в `options` модели — `ChatComposer` собирает по этой схеме форму, повторяющую DTO.
+
+## Оформление
+
+Нейтральная палитра, единственный акцентный цвет (индиго), радиус 0.75rem, шрифт Inter отдаётся
+со своего домена через Astro Fonts. Тёмная тема включается по системной настройке и запоминается
+в `localStorage`; чтобы не было вспышки белого, класс проставляется inline-скриптом в `<head>`.
+
+Название «NebulaAI» в интерфейсе — заглушка: меняется в `src/vue/locales/*.js` (`common.appName`)
+и в `src/components/Header.astro`.
+
+## Добавить компонент shadcn-vue
+
+```sh
+npx shadcn-vue@latest add dialog
+```
+
+`components.json` настроен на JavaScript (`"typescript": false`), поэтому компоненты приходят без TS.

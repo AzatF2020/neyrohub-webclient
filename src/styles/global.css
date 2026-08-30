@@ -1,0 +1,384 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* Типографика ответов модели: заголовки, списки, таблицы — класс prose */
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Компоненты shadcn-vue написаны под data-open/data-checked, а reka-ui выставляет data-state */
+@custom-variant data-open (&[data-state='open']);
+@custom-variant data-closed (&[data-state='closed']);
+@custom-variant data-checked (&[data-state='checked']);
+@custom-variant data-unchecked (&[data-state='unchecked']);
+
+@theme inline {
+  /* Мягче стандартного animate-pulse: заглушки дышат, а не мигают */
+  --animate-breathe: breathe 2.4s ease-in-out infinite;
+
+  @keyframes breathe {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.72;
+    }
+  }
+
+  --font-sans: var(--font-ui), system-ui, sans-serif;
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-highlight: var(--highlight);
+  --color-highlight-foreground: var(--highlight-foreground);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+/*
+ * Шкала интерфейса на шаг крупнее и плотнее стандартной: 14px Inter в основном тексте
+ * читаются мелко, а 400 рядом с ними выглядит бледно. Переопределяем сами шкалы, а не
+ * классы по месту, — все text-* и font-* по проекту подхватывают правку разом.
+ * Межстрочный интервал Tailwind держит отношением к кеглю, поэтому растёт вместе с ним.
+ */
+@theme {
+  --text-xs: 0.8125rem;
+  --text-sm: 0.9375rem;
+  --text-base: 1.0625rem;
+  --text-lg: 1.1875rem;
+  --text-xl: 1.3125rem;
+  --text-2xl: 1.5625rem;
+  --text-3xl: 1.9375rem;
+  --text-4xl: 2.375rem;
+  /* text-5xl не трогаем: он стоит только в заголовке первого экрана, и там уже крупно */
+
+  /*
+   * Каждая ступень на шаг тяжелее: font-medium → 600, font-semibold → 700.
+   * font-weight-bold остаётся 700 — font-bold в проекте не встречается,
+   * а 800 пришлось бы отдельно докачивать к Inter.
+   */
+  --font-weight-normal: 500;
+  --font-weight-medium: 600;
+  --font-weight-semibold: 700;
+}
+
+:root {
+  --radius: 0.75rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.53 0.19 285);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  /* Акцент «на, посмотри»: не primary, чтобы не спорил с кнопками, и не destructive */
+  --highlight: oklch(0.72 0.16 152);
+  --highlight-foreground: oklch(0.22 0.05 152);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.53 0.19 285);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.53 0.19 285);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.53 0.19 285);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.68 0.16 288);
+  --primary-foreground: oklch(0.16 0.02 285);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --highlight: oklch(0.79 0.17 152);
+  --highlight-foreground: oklch(0.19 0.04 152);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.68 0.16 288);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.68 0.16 288);
+  --sidebar-primary-foreground: oklch(0.16 0.02 285);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.68 0.16 288);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    /* font-normal здесь не «как раньше», а новая базовая насыщенность из шкалы выше */
+    @apply bg-background font-normal text-foreground;
+  }
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    scrollbar-gutter: stable;
+  }
+
+  ::selection {
+    @apply bg-primary/20;
+  }
+}
+
+@utility bubble-width {
+  /*
+   * Потолок пузыря реплики. На узком экране — доля ширины, чтобы пузырь не упирался
+   * в край, а на широком строка перестаёт читаться задолго до конца ленты: 36rem — это
+   * около 75 знаков при text-sm, дальше глаз уже теряет начало следующей строки.
+   */
+  max-width: min(85%, 36rem);
+}
+
+@utility fade-bottom {
+  /* Обрыв текста внизу карточки: мягче, чем многоточие посреди фразы */
+  mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+}
+
+@utility glow {
+  /* Единственный декоративный элемент интерфейса: мягкое свечение за первым экраном */
+  background-image: radial-gradient(60% 55% at 50% 0%, var(--color-primary) 0%, transparent 70%);
+  opacity: 0.14;
+}
+
+/*
+ * Ответ модели: разметку рисует renderMarkdown, здесь — только её оформление.
+ * Правила намеренно вне @layer: типографику даёт плагин prose из слоя утилит,
+ * а неслойные стили идут поверх любого слоя — иначе он перебивал бы их все.
+ */
+.markdown {
+  /* prose рассчитан на статью; в ленте чата ширину задаёт само сообщение */
+  max-width: none;
+
+  /* Свой кегль prose-sm держит в rem — ведём его от общей шкалы, дети считаются в em */
+  @apply text-sm;
+
+  /* Блок кода — светлая карточка в светлой теме, а не тёмная врезка */
+  --tw-prose-pre-bg: var(--background);
+  --tw-prose-pre-code: var(--foreground);
+}
+
+.markdown pre {
+  border: 1px solid var(--border);
+}
+
+/* Жирное в ответе prose ставит своим весом — возвращаем его на общую шкалу */
+.markdown :is(strong, b) {
+  @apply font-semibold;
+}
+
+/* Широкий блок кода, таблица или формула прокручиваются внутри себя */
+.markdown .markdown-scroll,
+.markdown .katex-display {
+  overflow-x: auto;
+}
+
+.markdown .katex-display {
+  overflow-y: hidden;
+}
+
+/* Обратные кавычки вокруг кода и лапки у цитат: в переписке они только мешают */
+.markdown code::before,
+.markdown code::after,
+.markdown blockquote p:first-of-type::before,
+.markdown blockquote p:last-of-type::after {
+  content: none;
+}
+
+.markdown :not(pre) > code {
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklab, var(--foreground) 8%, transparent);
+  padding: 0.125rem 0.25rem;
+  font-weight: 500;
+}
+
+/* Курсор набора живёт в конце последнего блока: сам текст ответа он не трогает */
+.markdown-writing > :last-child::after {
+  content: '▍';
+  margin-left: 0.125rem;
+  vertical-align: baseline;
+  font-style: normal;
+  animation: var(--animate-pulse);
+}
+
+/*
+ * Подсветка кода. Готовые темы highlight.js идут двумя отдельными файлами и в
+ * селектор темы их не завернуть, поэтому токены раскрашены под палитру интерфейса.
+ */
+.markdown .hljs-comment,
+.markdown .hljs-quote {
+  color: var(--muted-foreground);
+  font-style: italic;
+}
+
+.markdown .hljs-keyword,
+.markdown .hljs-selector-tag,
+.markdown .hljs-literal,
+.markdown .hljs-doctag,
+.markdown .hljs-meta .hljs-keyword {
+  color: oklch(0.48 0.19 288);
+}
+
+.markdown .hljs-string,
+.markdown .hljs-regexp,
+.markdown .hljs-addition,
+.markdown .hljs-attribute,
+.markdown .hljs-meta .hljs-string {
+  color: oklch(0.46 0.12 155);
+}
+
+.markdown .hljs-number,
+.markdown .hljs-variable,
+.markdown .hljs-template-variable,
+.markdown .hljs-type,
+.markdown .hljs-built_in,
+.markdown .hljs-params {
+  color: oklch(0.5 0.14 45);
+}
+
+.markdown .hljs-title,
+.markdown .hljs-title.function_,
+.markdown .hljs-section,
+.markdown .hljs-name,
+.markdown .hljs-selector-id,
+.markdown .hljs-selector-class {
+  color: oklch(0.48 0.16 250);
+}
+
+.markdown .hljs-attr,
+.markdown .hljs-symbol,
+.markdown .hljs-bullet,
+.markdown .hljs-link {
+  color: oklch(0.49 0.15 330);
+}
+
+.markdown .hljs-deletion {
+  color: var(--destructive);
+}
+
+.markdown .hljs-emphasis {
+  font-style: italic;
+}
+
+.markdown .hljs-strong {
+  font-weight: 600;
+}
+
+/* На тёмном фоне те же оттенки светлее и менее насыщенные — иначе рябит */
+.dark .markdown .hljs-keyword,
+.dark .markdown .hljs-selector-tag,
+.dark .markdown .hljs-literal,
+.dark .markdown .hljs-doctag,
+.dark .markdown .hljs-meta .hljs-keyword {
+  color: oklch(0.78 0.13 288);
+}
+
+.dark .markdown .hljs-string,
+.dark .markdown .hljs-regexp,
+.dark .markdown .hljs-addition,
+.dark .markdown .hljs-attribute,
+.dark .markdown .hljs-meta .hljs-string {
+  color: oklch(0.79 0.13 155);
+}
+
+.dark .markdown .hljs-number,
+.dark .markdown .hljs-variable,
+.dark .markdown .hljs-template-variable,
+.dark .markdown .hljs-type,
+.dark .markdown .hljs-built_in,
+.dark .markdown .hljs-params {
+  color: oklch(0.81 0.11 60);
+}
+
+.dark .markdown .hljs-title,
+.dark .markdown .hljs-title.function_,
+.dark .markdown .hljs-section,
+.dark .markdown .hljs-name,
+.dark .markdown .hljs-selector-id,
+.dark .markdown .hljs-selector-class {
+  color: oklch(0.79 0.11 235);
+}
+
+.dark .markdown .hljs-attr,
+.dark .markdown .hljs-symbol,
+.dark .markdown .hljs-bullet,
+.dark .markdown .hljs-link {
+  color: oklch(0.8 0.11 330);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}

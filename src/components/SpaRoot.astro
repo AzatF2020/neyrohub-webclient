@@ -1,0 +1,38 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+interface Props {
+	title: string;
+}
+
+const { title } = Astro.props;
+
+// Оболочка одна на все клиентские маршруты: /login, /register и /app/**.
+// Vue монтируется только в браузере, поэтому SSR-разметки здесь нет.
+const user = Astro.locals.user;
+const session = Astro.locals.session;
+
+// Токен сессии в разметку не отдаём — он остаётся в httpOnly-куке
+const { token: _token, ...safeSession } = session ?? {};
+---
+
+<Layout title={title}>
+	<div
+		id="app"
+		data-user={user ? JSON.stringify(user) : ''}
+		data-session={session ? JSON.stringify(safeSession) : ''}
+	>
+		<!-- До монтирования Vue контейнер пуст: он всё равно затирается при старте приложения -->
+	</div>
+</Layout>
+
+<script>
+	import { mountApp } from '../vue/main';
+
+	const el = document.getElementById('app');
+
+	if (el) {
+		const parse = (raw: string | undefined) => (raw ? JSON.parse(raw) : null);
+		mountApp(el, { user: parse(el.dataset.user), session: parse(el.dataset.session) });
+	}
+</script>

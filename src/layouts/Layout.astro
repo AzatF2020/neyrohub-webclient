@@ -1,23 +1,36 @@
+---
+import { Font } from 'astro:assets';
+import '../styles/global.css';
+
+interface Props {
+	title: string;
+	description?: string;
+}
+
+const {
+	title,
+	description = 'Генерация изображений и текста нейросетями: быстрый старт, аккуратный результат',
+} = Astro.props;
+---
+
 <!doctype html>
-<html lang="en">
+<html lang="ru" class="scroll-smooth">
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width" />
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
 		<meta name="generator" content={Astro.generator} />
-		<title>Astro Basics</title>
+		<meta name="description" content={description} />
+		<title>{title}</title>
+		<Font cssVariable="--font-ui" preload />
+		<script is:inline>
+			// До первой отрисовки, иначе тёмная тема моргнёт белым
+			const stored = localStorage.getItem('theme');
+			const dark = stored ? stored === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+			document.documentElement.classList.toggle('dark', dark);
+		</script>
 	</head>
-	<body>
+	<body class="min-h-svh bg-background font-sans text-foreground antialiased">
 		<slot />
 	</body>
 </html>
-
-<style>
-	html,
-	body {
-		margin: 0;
-		width: 100%;
-		height: 100%;
-	}
-</style>
