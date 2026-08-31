@@ -8,8 +8,20 @@ import { useSocket } from './useSocket';
 /** Сколько сообщений тянем за раз */
 const PER_PAGE = 20;
 
+/** Префикс id у черновиков: настоящие записи нумерует БД, у неё id числовые */
+const DRAFT_ID = 'draft';
+
 /** Как часто перечитывать сообщения, когда сокет недоступен */
 const POLL_INTERVAL = 6000;
+
+/**
+ * Черновик это или сохранённая запись. Лента по этому признаку решает, проигрывать ли
+ * появление: анимация нужна ровно один раз — когда запрос показался в ответ на отправку.
+ * Когда бэкенд подтвердит запись, черновик подменится ею уже без анимации.
+ */
+export function isDraft(message) {
+	return typeof message?.id === 'string' && message.id.startsWith(DRAFT_ID);
+}
 
 /** Состояние одного открытого чата: создаётся экраном чата и живёт вместе с ним */
 export function useChat() {
@@ -208,7 +220,7 @@ export function useChat() {
 	/** Место запроса в ленте, пока его не подтвердил бэкенд: та же форма, что у записи генерации */
 	function draftGeneration(options) {
 		return {
-			id: 'draft',
+			id: DRAFT_ID,
 			input: options,
 			status: TaskStatus.Created,
 			output: null,
@@ -226,14 +238,14 @@ export function useChat() {
 
 		draft.value = [
 			{
-				id: 'draft-user',
+				id: `${DRAFT_ID}-user`,
 				role: MessageRole.User,
 				content: options.prompt ?? '',
 				params: options,
 				createdAt,
 			},
 			{
-				id: 'draft-answer',
+				id: `${DRAFT_ID}-answer`,
 				role: MessageRole.Assistant,
 				content: '',
 				status: TaskStatus.Pending,

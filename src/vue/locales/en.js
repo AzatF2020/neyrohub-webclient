@@ -1,6 +1,6 @@
 export default {
 	common: {
-		appName: 'NebulaAI',
+		appName: 'NeyroHub',
 		signIn: 'Sign in',
 		signUp: 'Create account',
 		signOut: 'Sign out',
@@ -153,6 +153,7 @@ export default {
 		mediaBroken: 'The file did not load',
 		mediaRetry: 'Try again',
 		openOriginal: 'Open original',
+		download: 'Download',
 		price: {
 			value: '{credits} · {rub}',
 			from: 'from {credits} · {rub}',

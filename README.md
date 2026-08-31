@@ -162,7 +162,7 @@ src/
 со своего домена через Astro Fonts. Тёмная тема включается по системной настройке и запоминается
 в `localStorage`; чтобы не было вспышки белого, класс проставляется inline-скриптом в `<head>`.
 
-Название «NebulaAI» в интерфейсе — заглушка: меняется в `src/vue/locales/*.js` (`common.appName`)
+Название «NeyroHub» в интерфейсе — заглушка: меняется в `src/vue/locales/*.js` (`common.appName`)
 и в `src/components/Header.astro`.
 
 ## Добавить компонент shadcn-vue

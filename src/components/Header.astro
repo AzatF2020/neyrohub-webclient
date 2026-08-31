@@ -6,25 +6,9 @@ const pathname = Astro.url.pathname;
 <header class="sticky top-0 z-10 border-b border-border/60 bg-background/80 backdrop-blur">
 	<div class="mx-auto flex h-14 w-full max-w-5xl items-center justify-between px-4">
 		<a href="/" class="inline-flex items-center gap-2.5">
-			<span
-				class="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground"
-			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					viewBox="0 0 24 24"
-					fill="none"
-					stroke="currentColor"
-					stroke-width="2"
-					stroke-linecap="round"
-					stroke-linejoin="round"
-					class="size-4"
-				>
-					<path
-						d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"
-					></path>
-				</svg>
-			</span>
-			<span class="text-[15px] font-semibold tracking-tight">NebulaAI</span>
+			<!-- Знак на плашке, тот же файл, что у иконки вкладки: светлый градиент читается только на тёмном фоне -->
+			<img src="/icon.svg" alt="" width="32" height="32" class="size-8 rounded-lg" />
+			<span class="text-[15px] font-semibold tracking-tight">NeyroHub</span>
 		</a>
 
 		<nav class="flex items-center gap-1">

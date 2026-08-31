@@ -32,7 +32,7 @@ import ModelLogo from '../components/ModelLogo.vue';
 import Preloader from '../components/Preloader.vue';
 import MediaLightbox from '../components/MediaLightbox.vue';
 import ChatStart from '../components/ChatStart.vue';
-import { useChat } from '../composables/useChat';
+import { isDraft, useChat } from '../composables/useChat';
 import { useChatCreate } from '../composables/useChatCreate';
 import { useChats } from '../composables/useChats';
 import { useModels } from '../composables/useModels';
@@ -63,6 +63,12 @@ const { models, ensureLoaded: ensureModels, modelName, modelType } = useModels()
 const { create, remove } = useChats();
 const { open: openCreate } = useChatCreate();
 const { isConnected } = useSocket();
+
+/**
+ * Появление отправленного: короткий подъём с проявлением. Играет только у черновика —
+ * он и есть отправка, а подмену его настоящей записью человек видеть не должен.
+ */
+const ENTER_ANIMATION = 'animate-in fade-in slide-in-from-bottom-2 duration-300 ease-out';
 
 /** Модель нового чата: после создания её уже не поменять — это поле самого чата */
 const draftModel = ref('');
@@ -348,13 +354,19 @@ async function confirmRemove() {
 				<!-- В переписке реплики стоят вплотную, пары отделяет отступ запроса; у генераций обмен целиком в одной записи -->
 				<div v-else class="grid" :class="isChat ? 'gap-3' : 'gap-8'">
 					<template v-for="message in messages" :key="message.id">
-						<ChatReply v-if="isChat" :message="message" :model="chat?.model" />
+						<ChatReply
+							v-if="isChat"
+							:message="message"
+							:model="chat?.model"
+							:class="isDraft(message) && ENTER_ANIMATION"
+						/>
 						<ChatMessage
 							v-else
 							:message="message"
 							:type="chat?.type"
 							:model="chat?.model"
 							:progress="progress[message.taskId] ?? null"
+							:class="isDraft(message) && ENTER_ANIMATION"
 						/>
 					</template>
 				</div>

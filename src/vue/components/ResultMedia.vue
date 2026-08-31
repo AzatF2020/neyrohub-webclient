@@ -1,7 +1,9 @@
 <script setup>
+import { Download, LoaderCircle } from '@lucide/vue';
 import { onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Button } from '@/components/ui/button';
+import { saveFile } from '@/lib/download';
 
 const props = defineProps({
 	src: { type: String, required: true },
@@ -26,6 +28,7 @@ const attempt = ref(0);
 const failures = ref(0);
 const isLoaded = ref(false);
 const isBroken = ref(false);
+const isSaving = ref(false);
 let timer = null;
 
 watch(() => props.src, restart, { immediate: true });
@@ -37,6 +40,18 @@ function restart() {
 	failures.value = 0;
 	isLoaded.value = false;
 	isBroken.value = false;
+}
+
+/** Пока файл едет к нам, кнопка занята: второй клик отправил бы второй запрос */
+async function save() {
+	if (isSaving.value) return;
+
+	isSaving.value = true;
+	try {
+		await saveFile(props.src);
+	} finally {
+		isSaving.value = false;
+	}
 }
 
 function onError() {
@@ -88,6 +103,22 @@ function retry() {
 				@error="onError"
 			/>
 		</button>
+
+		<!-- Кнопка лежит поверх картинки в той же ячейке, в правом верхнем углу -->
+		<div v-if="!video && isLoaded" class="col-start-1 row-start-1 self-start justify-self-end p-2">
+			<Button
+				variant="secondary"
+				size="icon-sm"
+				class="bg-background/70 text-foreground shadow-sm backdrop-blur-sm hover:bg-background"
+				:disabled="isSaving"
+				:title="t('chats.download')"
+				:aria-label="t('chats.download')"
+				@click="save"
+			>
+				<LoaderCircle v-if="isSaving" class="animate-spin" />
+				<Download v-else />
+			</Button>
+		</div>
 
 		<div
 			v-if="isBroken"
