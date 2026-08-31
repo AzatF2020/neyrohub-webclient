@@ -17,5 +17,10 @@ export const PRICE_PROMPT = '.';
 export async function fetchPrice({ type, model, options }) {
 	const { data } = await api.post('/pricing/detail', { type, model, options });
 
-	return { credits: data.credits, priceRub: data.priceRub };
+	return {
+		credits: data.credits,
+		priceRub: data.priceRub,
+		// Бэкенд помечает расчёт, который может оказаться ниже факта: тогда показываем «от»
+		estimate: data.estimate === true,
+	};
 }

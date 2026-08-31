@@ -49,6 +49,13 @@ const { price, isFailed } = useModelPrice(() => {
 /** Текст стрима заранее не посчитать: цена справочная, за короткий ответ */
 const isEstimate = computed(() => isTextGeneration(props.type));
 
+/**
+ * Точную цену не обещаем: либо это набор по умолчанию в списке моделей, либо сам
+ * бэкенд пометил расчёт нижней границей — так он делает с референсными видео,
+ * секунды которых до генерации неизвестны.
+ */
+const isFrom = computed(() => props.from || price.value?.estimate === true);
+
 const amounts = computed(() =>
 	price.value
 		? { credits: formatCredits(price.value.credits), rub: formatRubles(price.value.priceRub) }
@@ -61,7 +68,7 @@ const label = computed(() => {
 	// «≈» и «от» предупреждают, что списание может отличаться: точную цену тут не обещаем
 	if (isEstimate.value) return t('chats.price.about', amounts.value);
 
-	return t(props.from ? 'chats.price.from' : 'chats.price.value', amounts.value);
+	return t(isFrom.value ? 'chats.price.from' : 'chats.price.value', amounts.value);
 });
 
 const hint = computed(() => {
@@ -77,7 +84,7 @@ const hint = computed(() => {
 
 	if (isEstimate.value) return t('chats.price.hintText', { credits, rub });
 
-	return t(props.from ? 'chats.price.hintFrom' : 'chats.price.hint', { credits, rub });
+	return t(isFrom.value ? 'chats.price.hintFrom' : 'chats.price.hint', { credits, rub });
 });
 </script>
 

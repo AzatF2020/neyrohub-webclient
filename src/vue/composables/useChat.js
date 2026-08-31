@@ -22,19 +22,20 @@ export function useChat() {
 	/** Прогресс генерации по taskId — только из сокета, в БД его нет */
 	const progress = ref({});
 	/**
-	 * Пара сообщений, которая живёт только на время стрима: запрос уже отправлен,
-	 * а записи из БД придут в конце — до тех пор ленту дорисовывают эти два.
+	 * Сообщения, которых ещё нет в БД: отправленный запрос показываем сразу, не дожидаясь
+	 * ответа сервера. У генерации это одна запись с местом под результат, у переписки —
+	 * пара реплик на время стрима. Форма как у настоящих записей: лента их не различает.
 	 */
-	const draft = ref(null);
+	const draft = ref([]);
 	const isLoading = ref(false);
 	const isLoadingMore = ref(false);
 	const isSending = ref(false);
+	const isStreaming = ref(false);
 	const error = ref('');
 
-	const isStreaming = computed(() => Boolean(draft.value));
 	/** Лента для экрана: сохранённые сообщения плюс незавершённый обмен */
 	const feed = computed(() =>
-		draft.value ? [...messages.value, draft.value.user, draft.value.answer] : messages.value,
+		draft.value.length ? [...messages.value, ...draft.value] : messages.value,
 	);
 	const hasPending = computed(() => messages.value.some((message) => isPending(message.status)));
 	const hasMore = computed(() => messages.value.length < total.value);
@@ -118,10 +119,27 @@ export function useChat() {
 			isLoading.value = false;
 		}
 
-		// У текстовых моделей задачи в очереди нет: ответ приходит стримом, ждать события нечего
+		watchTasks();
+	}
+
+	/**
+	 * Чат только что создан этим же экраном. Запись о нём у нас уже есть, а сообщений
+	 * в нём заведомо нет — читать его с сервера незачем: два запроса впустую, и всё это
+	 * время лента выглядит пустой, хотя запрос человек уже отправил.
+	 */
+	function adopt(created) {
+		close();
+		chat.value = created;
+		page = 1;
+
+		watchTasks();
+	}
+
+	/** Следим за задачами чата. У текстовых моделей их нет: ответ приходит стримом */
+	function watchTasks() {
 		if (isTextGeneration(chat.value.type)) return;
 
-		unsubscribe = subscribe(chatsApi.chatRoom(chatId), {
+		unsubscribe = subscribe(chatsApi.chatRoom(chat.value.id), {
 			'task.status': applyStatus,
 			'task.progress': applyProgress,
 		});
@@ -144,7 +162,8 @@ export function useChat() {
 		messages.value = [];
 		total.value = 0;
 		progress.value = {};
-		draft.value = null;
+		draft.value = [];
+		isStreaming.value = false;
 		page = 1;
 	}
 
@@ -161,6 +180,8 @@ export function useChat() {
 
 		isSending.value = true;
 		error.value = '';
+		// Запись создаётся на бэкенде, но показать запрос надо сразу — ждать её незачем
+		draft.value = [draftGeneration(options)];
 
 		try {
 			// Генерация — одна запись: запрос, задача и место под результат вместе
@@ -178,8 +199,21 @@ export function useChat() {
 			error.value = apiErrorText(requestError) ?? '';
 			throw requestError;
 		} finally {
+			// Настоящая запись уже в ленте: подменяем её черновик в том же кадре
+			draft.value = [];
 			isSending.value = false;
 		}
+	}
+
+	/** Место запроса в ленте, пока его не подтвердил бэкенд: та же форма, что у записи генерации */
+	function draftGeneration(options) {
+		return {
+			id: 'draft',
+			input: options,
+			status: TaskStatus.Created,
+			output: null,
+			createdAt: new Date().toISOString(),
+		};
 	}
 
 	/**
@@ -190,22 +224,23 @@ export function useChat() {
 	async function stream(options) {
 		const createdAt = new Date().toISOString();
 
-		draft.value = {
-			user: {
+		draft.value = [
+			{
 				id: 'draft-user',
 				role: MessageRole.User,
 				content: options.prompt ?? '',
 				params: options,
 				createdAt,
 			},
-			answer: {
+			{
 				id: 'draft-answer',
 				role: MessageRole.Assistant,
 				content: '',
 				status: TaskStatus.Pending,
 				createdAt,
 			},
-		};
+		];
+		isStreaming.value = true;
 		error.value = '';
 		controller = new AbortController();
 
@@ -216,7 +251,7 @@ export function useChat() {
 				{
 					signal: controller.signal,
 					onDelta: (delta) => {
-						draft.value.answer.content += delta;
+						draft.value[1].content += delta;
 					},
 				},
 			);
@@ -230,7 +265,8 @@ export function useChat() {
 			controller = null;
 			// Записи создаются в начале стрима, поэтому свежая страница знает про обе
 			await reload().catch(() => {});
-			draft.value = null;
+			draft.value = [];
+			isStreaming.value = false;
 
 			// Экран могли закрыть на середине стрима — тогда обновлять уже нечего
 			const last = messages.value.at(-1);
@@ -251,6 +287,7 @@ export function useChat() {
 		hasPending,
 		hasMore,
 		open,
+		adopt,
 		close,
 		loadOlder,
 		send,

@@ -4,7 +4,7 @@ import { computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatTime } from '@/lib/datetime';
-import { GenerationType, TaskStatus, isPending, readOutput } from '@/lib/neurals';
+import { GenerationType, TaskStatus, isPending, readAttachments, readOutput } from '@/lib/neurals';
 import { useLightbox } from '../composables/useLightbox';
 import { useMarkdown } from '../composables/useMarkdown';
 import { useMessageParams } from '../composables/useMessageParams';
@@ -35,11 +35,10 @@ const isVideo = computed(() => props.type === GenerationType.Videos);
 
 const prompt = computed(() => props.message.input?.prompt ?? '');
 
-/** Приложенные к запросу изображения: как называется поле, известно из схемы модели */
-const attachments = computed(() => {
-	const field = modelOptions(props.model).find((item) => item.type === 'image_list');
-	return (field && props.message.input?.[field.name]) || [];
-});
+/** Приложенные к запросу файлы: какие поля их держат, известно из схемы модели */
+const attachments = computed(() =>
+	readAttachments(modelOptions(props.model), props.message.input),
+);
 
 /** Место под результат держим в тех же пропорциях, что запросили — иначе лента дёргается */
 const ratio = computed(() => {
@@ -63,14 +62,24 @@ watch(() => result.value.text, (text) => text && void ensureMarkdown(), { immedi
 			<div class="bubble-width grid justify-items-end gap-1.5">
 				<div v-if="attachments.length" class="flex flex-wrap justify-end gap-1.5">
 					<button
-						v-for="image in attachments"
-						:key="image"
+						v-for="item in attachments"
+						:key="item.url"
 						type="button"
 						class="cursor-zoom-in"
-						@click="open(image, prompt)"
+						@click="open(item.url, prompt, { video: item.isVideo })"
 					>
+						<!-- Референсный ролик показывает первый кадр; смотреть его — в просмотрщике -->
+						<video
+							v-if="item.isVideo"
+							:src="item.url"
+							muted
+							playsinline
+							preload="metadata"
+							class="pointer-events-none size-16 rounded-lg border border-border object-cover"
+						/>
 						<img
-							:src="image"
+							v-else
+							:src="item.url"
 							:alt="prompt"
 							loading="lazy"
 							class="size-16 rounded-lg border border-border object-cover"

@@ -65,6 +65,32 @@ export async function fetchModels(search) {
 }
 
 /**
+ * Поля-вложения в схеме модели. Загрузки файлов на бэкенде нет: и картинки, и видео
+ * едут ссылками, провайдер скачивает их сам. Полей может быть несколько — minimax-h3
+ * принимает референсные картинки и ролики отдельными списками и в одном запросе.
+ */
+const ATTACHMENT_TYPES = ['image_list', 'video_list'];
+
+export function attachmentFields(options) {
+	return (options ?? []).filter((field) => ATTACHMENT_TYPES.includes(field.type));
+}
+
+/** Ролики показывают кадром, картинки — самой картинкой, поэтому вид поля важен */
+export function isVideoField(field) {
+	return field?.type === 'video_list';
+}
+
+/**
+ * Вложения запроса: какие поля их держат, известно из схемы модели, а какого они
+ * вида — из типа поля. Порядок полей сохраняем — он же был в форме.
+ */
+export function readAttachments(options, params) {
+	return attachmentFields(options).flatMap((field) =>
+		(params?.[field.name] ?? []).map((url) => ({ url, isVideo: isVideoField(field) })),
+	);
+}
+
+/**
  * Значок модели лежит в public/models/<slug>.svg. Файла может не быть —
  * тогда интерфейс показывает запасную иконку.
  */

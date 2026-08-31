@@ -30,7 +30,7 @@ import ChatMessage from '../components/ChatMessage.vue';
 import ChatReply from '../components/ChatReply.vue';
 import ModelLogo from '../components/ModelLogo.vue';
 import Preloader from '../components/Preloader.vue';
-import ImageLightbox from '../components/ImageLightbox.vue';
+import MediaLightbox from '../components/MediaLightbox.vue';
 import ChatStart from '../components/ChatStart.vue';
 import { useChat } from '../composables/useChat';
 import { useChatCreate } from '../composables/useChatCreate';
@@ -53,6 +53,7 @@ const {
 	error,
 	hasMore,
 	open,
+	adopt,
 	close,
 	loadOlder,
 	send,
@@ -215,9 +216,19 @@ async function submit(options) {
 			if (!model) return;
 
 			const chatId = await create({ type: model.type, model: model.model });
-			await open(chatId);
-			// Адрес меняем до отправки: ответ текстовой модели идёт потоком и ждать его тут нечего
-			await router.replace({ name: 'chat', params: { id: chatId } });
+			// Свежесозданный чат забираем как есть: перечитывать с сервера нечего, он пуст
+			adopt({ id: chatId, type: model.type, model: model.model });
+
+			/*
+			 * Переход не ждём, а отправляем в том же кадре: адрес нужен на случай перезагрузки,
+			 * но пока навигация идёт, лента уже не пуста — в ней стоит черновик запроса, который
+			 * send рисует синхронно. Иначе между сменой адреса и отправкой мелькало «Пока пусто».
+			 */
+			void router.replace({
+				name: 'chat',
+				params: { id: chatId },
+				query: { type: model.type },
+			});
 			await send(options);
 			return;
 		}
@@ -355,7 +366,7 @@ async function confirmRemove() {
 			/>
 		</div>
 
-		<ImageLightbox />
+		<MediaLightbox />
 
 		<AlertDialog v-model:open="isRemoving">
 			<AlertDialogContent>

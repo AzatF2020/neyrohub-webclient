@@ -3,14 +3,15 @@ import {
 	Brain,
 	FileType,
 	Globe,
+	ImagePlus,
 	Monitor,
-	Plus,
 	SendHorizontal,
 	Settings2,
 	ShieldCheck,
 	SlidersHorizontal,
 	Square,
 	Timer,
+	Video,
 	X,
 } from '@lucide/vue';
 import { computed, nextTick, ref, watch } from 'vue';
@@ -27,7 +28,7 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Textarea } from '@/components/ui/textarea';
-import { isTextGeneration, parseRatio } from '@/lib/neurals';
+import { attachmentFields, isTextGeneration, isVideoField, parseRatio } from '@/lib/neurals';
 import { useLightbox } from '../composables/useLightbox';
 import { useModels } from '../composables/useModels';
 import AspectRatioSelect from './AspectRatioSelect.vue';
@@ -44,15 +45,26 @@ const props = defineProps({
 const emit = defineEmits(['submit', 'stop']);
 
 const { t, te } = useI18n();
-const { open: openImage } = useLightbox();
+const { open: openMedia } = useLightbox();
 const { models, modelOptions, modelControls, modelType, defaultOptions } = useModels();
 
 const prompt = ref('');
 const options = ref({});
 /** Ссылка, которую сейчас вводят: в options она попадёт только целой */
 const url = ref('');
-const isAttaching = ref(false);
+/** Поле, ссылку для которого сейчас вводят; null — строки ввода нет */
+const attaching = ref(null);
 const urlField = ref(null);
+
+/** Подписи у картинок и роликов свои: «ссылка на изображение» и «ссылка на видео» */
+const ATTACH_TEXTS = {
+	image_list: { button: 'chats.attach', url: 'chats.attachUrl', limit: 'chats.attachLimit' },
+	video_list: {
+		button: 'chats.attachVideo',
+		url: 'chats.attachVideoUrl',
+		limit: 'chats.attachVideoLimit',
+	},
+};
 
 /** У чата с текстовой моделью и подсказка другая: тут не задание, а разговор */
 const isChat = computed(() => isTextGeneration(modelType(props.model)));
@@ -60,11 +72,18 @@ const isChat = computed(() => isTextGeneration(modelType(props.model)));
 const promptField = computed(() =>
 	modelOptions(props.model).find((field) => field.name === 'prompt'),
 );
-/** Вложения поддерживает не каждая модель — поле для них есть только там, где они описаны */
-const attachments = computed(() =>
-	modelOptions(props.model).find((field) => field.type === 'image_list'),
+/**
+ * Вложения поддерживает не каждая модель, а иные — сразу двумя списками: у minimax-h3
+ * референсные картинки и ролики лежат в разных полях и едут в одном запросе.
+ */
+const attachments = computed(() => attachmentFields(modelOptions(props.model)));
+
+/** Всё приложенное разом: лента над промптом общая, вид берётся из поля */
+const attached = computed(() =>
+	attachments.value.flatMap((field) =>
+		filesOf(field).map((src) => ({ src, field, isVideo: isVideoField(field) })),
+	),
 );
-const images = computed(() => (attachments.value && options.value[attachments.value.name]) || []);
 
 /** Зависимый параметр показываем, только когда заполнен тот, от которого он зависит */
 const fields = computed(() =>
@@ -73,7 +92,7 @@ const fields = computed(() =>
 	),
 );
 
-/** Промпт бывает необязательным: например, когда вместо него приложены изображения */
+/** Промпт бывает необязательным: например, когда вместо него приложены картинки или ролики */
 const needsPrompt = computed(() => {
 	const field = promptField.value;
 	if (!field?.required) return false;
@@ -87,9 +106,6 @@ const needsPrompt = computed(() => {
  */
 const priceOptions = computed(() => filledOptions());
 
-const canAttachMore = computed(
-	() => Boolean(attachments.value) && images.value.length < (attachments.value.max ?? Infinity),
-);
 const canSend = computed(
 	() =>
 		(Boolean(prompt.value.trim()) || !needsPrompt.value) &&
@@ -114,8 +130,24 @@ function isFilled(value) {
 	return value !== '' && value !== null && value !== undefined;
 }
 
-/** Загрузки файлов на бэкенде нет: провайдер забирает картинку по ссылке, поэтому её и просим */
-function isImageUrl(value) {
+function filesOf(field) {
+	return options.value[field.name] ?? [];
+}
+
+function canAttachMore(field) {
+	return filesOf(field).length < (field.max ?? Infinity);
+}
+
+function attachText(field, kind) {
+	return t(ATTACH_TEXTS[field.type][kind]);
+}
+
+function attachIcon(field) {
+	return isVideoField(field) ? Video : ImagePlus;
+}
+
+/** Загрузки файлов на бэкенде нет: провайдер забирает файл по ссылке, поэтому её и просим */
+function isFileUrl(value) {
 	try {
 		return ['http:', 'https:'].includes(new URL(value.trim()).protocol);
 	} catch {
@@ -155,10 +187,10 @@ function icon(name) {
 
 function reset() {
 	options.value = defaultOptions(props.model);
-	if (attachments.value) options.value[attachments.value.name] = [];
+	for (const field of attachments.value) options.value[field.name] = [];
 
 	url.value = '';
-	isAttaching.value = false;
+	attaching.value = null;
 }
 
 /** Значение вне диапазона бэкенд не примет — поправляем сразу, не дожидаясь ошибки */
@@ -170,21 +202,24 @@ function clamp(field) {
 		: '';
 }
 
-async function startAttaching() {
-	isAttaching.value = true;
+async function startAttaching(field) {
+	attaching.value = field;
+	url.value = '';
+
 	await nextTick();
 	urlField.value?.$el?.focus();
 }
 
-function addImage() {
-	if (!isImageUrl(url.value) || !canAttachMore.value) return;
+function addAttachment() {
+	const field = attaching.value;
+	if (!field || !isFileUrl(url.value) || !canAttachMore(field)) return;
 
-	options.value[attachments.value.name] = [...images.value, url.value.trim()];
+	options.value[field.name] = [...filesOf(field), url.value.trim()];
 	url.value = '';
 }
 
-function removeImage(index) {
-	options.value[attachments.value.name] = images.value.filter((_, item) => item !== index);
+function removeAttachment({ field, src }) {
+	options.value[field.name] = filesOf(field).filter((item) => item !== src);
 }
 
 /** Уходит только заполненное: пустое поле означает «параметр не задан» */
@@ -213,7 +248,7 @@ function submit() {
 
 	emit('submit', payload());
 	prompt.value = '';
-	if (attachments.value) options.value[attachments.value.name] = [];
+	for (const field of attachments.value) options.value[field.name] = [];
 }
 </script>
 
@@ -223,21 +258,37 @@ function submit() {
 		@submit.prevent="submit"
 	>
 		<!-- Вложения выше промпта: они могут его заменить, а не только дополнить -->
-		<div v-if="images.length" class="flex flex-wrap gap-2">
-			<div v-for="(image, index) in images" :key="image" class="relative">
-				<button type="button" class="block cursor-zoom-in" @click="openImage(image)">
+		<div v-if="attached.length" class="flex flex-wrap gap-2">
+			<div v-for="item in attached" :key="item.src" class="relative">
+				<!-- Ролик показывает первый кадр: проигрывать его тут негде, а узнать файл надо -->
+				<button
+					v-if="item.isVideo"
+					type="button"
+					class="block cursor-zoom-in"
+					@click="openMedia(item.src, '', { video: true })"
+				>
+					<video
+						:src="item.src"
+						muted
+						playsinline
+						preload="metadata"
+						class="pointer-events-none size-14 rounded-lg border border-border object-cover"
+					/>
+				</button>
+				<button v-else type="button" class="block cursor-zoom-in" @click="openMedia(item.src)">
 					<img
-						:src="image"
+						:src="item.src"
 						alt=""
 						class="size-14 rounded-lg border border-border object-cover"
 					/>
 				</button>
+
 				<Button
 					variant="secondary"
 					size="icon"
 					class="absolute -top-1.5 -right-1.5 size-5 rounded-full"
 					:aria-label="t('chats.attachRemove')"
-					@click="removeImage(index)"
+					@click="removeAttachment(item)"
 				>
 					<X class="size-3" />
 				</Button>
@@ -253,34 +304,34 @@ function submit() {
 			@keydown.enter.exact.prevent="submit"
 		/>
 
-		<div v-if="isAttaching" class="grid gap-1.5">
-			<div v-if="canAttachMore" class="flex gap-2">
+		<div v-if="attaching" class="grid gap-1.5">
+			<div v-if="canAttachMore(attaching)" class="flex gap-2">
 				<Input
 					ref="urlField"
 					v-model="url"
 					type="url"
 					inputmode="url"
-					:placeholder="t('chats.attachUrl')"
+					:placeholder="attachText(attaching, 'url')"
 					:disabled="disabled"
 					class="h-8"
-					@keydown.enter.prevent="addImage"
-					@keydown.esc="isAttaching = false"
+					@keydown.enter.prevent="addAttachment"
+					@keydown.esc="attaching = null"
 				/>
 				<Button
 					type="button"
 					size="sm"
 					variant="secondary"
-					:disabled="!isImageUrl(url)"
-					@click="addImage"
+					:disabled="!isFileUrl(url)"
+					@click="addAttachment"
 				>
 					{{ t('chats.attachAdd') }}
 				</Button>
 			</div>
 
-			<p v-if="!canAttachMore" class="text-xs text-muted-foreground">
-				{{ t('chats.attachLimit', { count: attachments.max }) }}
+			<p v-if="!canAttachMore(attaching)" class="text-xs text-muted-foreground">
+				{{ attachText(attaching, 'limit') }}
 			</p>
-			<p v-else-if="url && !isImageUrl(url)" class="text-xs text-destructive">
+			<p v-else-if="url && !isFileUrl(url)" class="text-xs text-destructive">
 				{{ t('validation.url') }}
 			</p>
 		</div>
@@ -360,18 +411,20 @@ function submit() {
 
 			<!-- Действия держатся вместе у правого края и переносятся тоже вместе -->
 			<div class="ml-auto flex items-center gap-2">
+				<!-- Кнопка на каждый список: картинки и ролики модель принимает разными полями -->
 				<Button
-					v-if="attachments"
+					v-for="field in attachments"
+					:key="field.name"
 					type="button"
-					:variant="isAttaching ? 'secondary' : 'outline'"
+					:variant="attaching?.name === field.name ? 'secondary' : 'outline'"
 					size="icon"
 					:disabled="disabled"
-					:title="t('chats.attach')"
-					:aria-label="t('chats.attach')"
+					:title="attachText(field, 'button')"
+					:aria-label="attachText(field, 'button')"
 					class="size-8 rounded-full"
-					@click="isAttaching ? (isAttaching = false) : startAttaching()"
+					@click="attaching?.name === field.name ? (attaching = null) : startAttaching(field)"
 				>
-					<Plus class="size-4" />
+					<component :is="attachIcon(field)" class="size-4" />
 				</Button>
 
 				<Button

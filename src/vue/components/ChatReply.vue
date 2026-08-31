@@ -3,7 +3,7 @@ import { TriangleAlert } from '@lucide/vue';
 import { computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { formatTime } from '@/lib/datetime';
-import { MessageRole, TaskStatus, isPending } from '@/lib/neurals';
+import { MessageRole, TaskStatus, isPending, readAttachments } from '@/lib/neurals';
 import { useLightbox } from '../composables/useLightbox';
 import { useMarkdown } from '../composables/useMarkdown';
 import { useMessageParams } from '../composables/useMessageParams';
@@ -44,11 +44,10 @@ onMounted(() => {
 	if (!isUser.value) void ensureMarkdown();
 });
 
-/** Приложенные к запросу изображения: как называется поле, известно из схемы модели */
-const attachments = computed(() => {
-	const field = modelOptions(props.model).find((item) => item.type === 'image_list');
-	return (field && props.message.params?.[field.name]) || [];
-});
+/** Приложенные к запросу файлы: какие поля их держат, известно из схемы модели */
+const attachments = computed(() =>
+	readAttachments(modelOptions(props.model), props.message.params),
+);
 
 /** Расход токенов интересен редко — держим его в подсказке к ответу */
 const usage = computed(() => {
@@ -67,14 +66,23 @@ const usage = computed(() => {
 		<div class="bubble-width grid justify-items-end gap-1.5">
 			<div v-if="attachments.length" class="flex flex-wrap justify-end gap-1.5">
 				<button
-					v-for="image in attachments"
-					:key="image"
+					v-for="item in attachments"
+					:key="item.url"
 					type="button"
 					class="cursor-zoom-in"
-					@click="open(image, text)"
+					@click="open(item.url, text, { video: item.isVideo })"
 				>
+					<video
+						v-if="item.isVideo"
+						:src="item.url"
+						muted
+						playsinline
+						preload="metadata"
+						class="pointer-events-none size-16 rounded-lg border border-border object-cover"
+					/>
 					<img
-						:src="image"
+						v-else
+						:src="item.url"
 						:alt="text"
 						loading="lazy"
 						class="size-16 rounded-lg border border-border object-cover"
