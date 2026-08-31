@@ -118,7 +118,7 @@ const initials = computed(() => (user.value?.name ?? '?').trim().charAt(0).toUpp
 					<AvatarFallback>{{ initials }}</AvatarFallback>
 				</Avatar>
 				<div class="min-w-0 flex-1">
-					<p class="truncate text-sm font-medium">{{ user?.name }}</p>
+					<p class="truncate text-sm font-bold">{{ user?.name }}</p>
 					<p class="truncate text-xs text-muted-foreground">{{ user?.email }}</p>
 				</div>
 				<Badge v-if="isAdmin" variant="secondary">admin</Badge>

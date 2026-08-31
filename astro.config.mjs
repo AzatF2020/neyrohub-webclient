@@ -24,7 +24,7 @@ export default defineConfig({
 			provider: fontProviders.google(),
 			name: 'Manrope',
 			cssVariable: '--font-ui',
-			weights: [400, 500, 600, 700],
+			weights: [400, 500, 600, 700, 800, 900],
 			styles: ['normal'],
 			subsets: ['latin', 'cyrillic'],
 			fallbacks: ['system-ui', 'sans-serif'],

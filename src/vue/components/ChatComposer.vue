@@ -50,6 +50,7 @@ const { models, modelOptions, modelControls, modelType, defaultOptions } = useMo
 
 const prompt = ref('');
 const options = ref({});
+const promptArea = ref(null);
 /** Ссылка, которую сейчас вводят: в options она попадёт только целой */
 const url = ref('');
 /** Поле, ссылку для которого сейчас вводят; null — строки ввода нет */
@@ -243,6 +244,14 @@ function payload() {
 	};
 }
 
+/** Затравка с экрана нового чата: кладём её в поле, а не отправляем — её ещё поправят */
+function fill(text) {
+	prompt.value = text;
+	promptArea.value?.$el?.focus();
+}
+
+defineExpose({ fill });
+
 function submit() {
 	if (!canSend.value) return;
 
@@ -296,6 +305,7 @@ function submit() {
 		</div>
 
 		<Textarea
+			ref="promptArea"
 			v-model="prompt"
 			:placeholder="placeholder"
 			:maxlength="promptField?.max"

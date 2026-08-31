@@ -187,6 +187,16 @@
   ::selection {
     @apply bg-primary/20;
   }
+
+  /*
+   * Tailwind v4 оставляет кнопке системный курсор — возвращаем указатель: по нему
+   * нажимаемое видно раньше, чем по подсветке. Выключенной кнопке он не нужен:
+   * там нечего нажимать, и курсор говорит об этом до щелчка.
+   */
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']) {
+    cursor: pointer;
+  }
 }
 
 @utility bubble-width {

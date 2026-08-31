@@ -1,5 +1,5 @@
 <script setup>
-import { ArrowLeft, MoreHorizontal, Sparkles, Trash2, WifiOff } from '@lucide/vue';
+import { ArrowLeft, MoreHorizontal, Repeat2, Sparkles, Trash2, WifiOff } from '@lucide/vue';
 import { useElementSize } from '@vueuse/core';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -69,6 +69,7 @@ const draftModel = ref('');
 const isRemoving = ref(false);
 const feed = ref(null);
 const composer = ref(null);
+const composerForm = ref(null);
 const pageHeader = ref(null);
 const feedContent = ref(null);
 /** Пока человек у нижнего края, лента сама остаётся внизу: картинки грузятся и растягивают её */
@@ -207,6 +208,11 @@ async function showOlder() {
 	if (el) el.scrollTop += el.scrollHeight - heightBefore;
 }
 
+/** Готовый запрос с экрана нового чата: композер сам решает, что с ним делать */
+function fillPrompt(text) {
+	composerForm.value?.fill(text);
+}
+
 async function submit(options) {
 	error.value = '';
 
@@ -272,9 +278,15 @@ async function confirmRemove() {
 				</RouterLink>
 			</Button>
 
-			<ModelLogo :model="chat?.model" class="size-8" />
+			<ModelLogo :model="activeModel" class="size-8" />
 
 			<h1 class="min-w-0 flex-1 truncate text-md font-bold tracking-tight">{{ title }}</h1>
+
+			<!-- Модель меняется только до создания: дальше она поле самого чата и его записей -->
+			<Button v-if="isNew" variant="outline" size="sm" class="shrink-0" @click="openCreate">
+				<Repeat2 class="size-4" />
+				{{ t('chats.changeModel') }}
+			</Button>
 
 			<!-- Обрыв сокета прятать нельзя: значок и нужен ровно тогда, когда он виден -->
 			<Badge
@@ -313,7 +325,8 @@ async function confirmRemove() {
 			:style="feedStyle"
 			@scroll.passive="onFeedScroll"
 		>
-			<div ref="feedContent">
+			<!-- Пустой чат центрирует логотип, поэтому в этом случае растягиваем обёртку на всю ленту -->
+			<div ref="feedContent" :class="isNew && 'flex min-h-full flex-col'">
 				<div v-if="hasMore" class="mb-8 flex justify-center">
 					<Button variant="outline" size="sm" :disabled="isLoadingMore" @click="showOlder">
 						{{ isLoadingMore ? t('common.loading') : t('chats.loadMore') }}
@@ -323,7 +336,7 @@ async function confirmRemove() {
 				<Preloader v-if="isLoading" />
 
 				<!-- Новый чат: вместо пустой ленты выбор задачи и затравки для поля ввода -->
-				<ChatStart v-else-if="isNew" :model="draftModel" class="pb-2" />
+				<ChatStart v-else-if="isNew" :model="draftModel" @pick="fillPrompt" />
 
 				<div v-else-if="!messages.length" class="grid justify-items-center gap-2 py-20 text-center">
 					<Sparkles class="size-6 text-muted-foreground" />
@@ -357,6 +370,7 @@ async function confirmRemove() {
 			</Alert>
 
 			<ChatComposer
+				ref="composerForm"
 				:model="activeModel"
 				:disabled="isLoading || !activeModel"
 				:sending="isSending"
