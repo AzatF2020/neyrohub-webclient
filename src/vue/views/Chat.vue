@@ -331,8 +331,12 @@ async function confirmRemove() {
 			:style="feedStyle"
 			@scroll.passive="onFeedScroll"
 		>
-			<!-- Пустой чат центрирует логотип, поэтому в этом случае растягиваем обёртку на всю ленту -->
-			<div ref="feedContent" :class="isNew && 'flex min-h-full flex-col'">
+			<!--
+				Обёртка ленты: держит высоту на весь свободный экран, чтобы ожидание и пустой чат
+				стояли по её центру (сообщениям лишняя высота не мешает — они идут сверху вниз).
+				Она же измеряется для автопрокрутки, поэтому убрать её нельзя.
+			-->
+			<div ref="feedContent" class="flex min-h-full flex-col">
 				<div v-if="hasMore" class="mb-8 flex justify-center">
 					<Button variant="outline" size="sm" :disabled="isLoadingMore" @click="showOlder">
 						{{ isLoadingMore ? t('common.loading') : t('chats.loadMore') }}

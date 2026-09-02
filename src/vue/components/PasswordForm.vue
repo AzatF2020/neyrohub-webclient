@@ -61,7 +61,7 @@ async function submit() {
 		</CardHeader>
 		<CardContent>
 			<!-- Пара полей в строку: карточка теперь во всю ширину страницы -->
-			<form class="grid gap-4 sm:grid-cols-2" novalidate @submit.prevent="submit">
+			<form class="items-start grid gap-4 sm:grid-cols-2" novalidate @submit.prevent="submit">
 				<FormField
 					v-model="form.currentPassword"
 					type="password"

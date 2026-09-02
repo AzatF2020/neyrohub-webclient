@@ -1,12 +1,16 @@
 <script setup>
-import { Sparkles } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
+import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 
 /**
- * Ожидание страницы: знак приложения вместо заглушек-прямоугольников. Скелет обещает
- * форму содержимого, а у ленты чата она заранее неизвестна — сообщений может не быть
- * вовсе. Дышит, а не мигает: та же анимация, что у остальных ожиданий в интерфейсе.
+ * Ожидание содержимого: спиннер с подписью. Скелет обещает форму того, что появится,
+ * а у ленты чата она заранее неизвестна — сообщений может не быть вовсе. Индикатор
+ * нейтральный, поэтому один и тот же и в чате, и в списках.
+ *
+ * flex-1 работает там, где место вызова растянуто на свободную высоту (лента чата) —
+ * тогда спиннер стоит по её центру. В обычном потоке высоту держит py, его же и
+ * переопределяют классом снаружи.
  */
 const props = defineProps({
 	class: { type: [Boolean, null, String, Object, Array], required: false, skipCheck: true },
@@ -16,23 +20,13 @@ const { t } = useI18n();
 </script>
 
 <template>
+	<!-- Подпись читает screen reader с обёртки, поэтому саму иконку от него скрываем -->
 	<div
-		:class="cn('grid justify-items-center gap-4 py-20', props.class)"
+		:class="cn('flex flex-1 flex-col items-center justify-center gap-3 py-20', props.class)"
 		role="status"
 		:aria-label="t('common.loading')"
 	>
-		<span class="relative flex size-16 items-center justify-center">
-			<span
-				class="absolute inset-0 animate-spin rounded-full border-2 border-primary/15 border-t-primary"
-				aria-hidden="true"
-			/>
-			<span
-				class="flex size-10 animate-breathe items-center justify-center rounded-xl bg-primary text-primary-foreground"
-			>
-				<Sparkles class="size-5" />
-			</span>
-		</span>
-
+		<Spinner class="size-5 text-muted-foreground" aria-hidden="true" />
 		<p class="text-sm text-muted-foreground">{{ t('common.loading') }}</p>
 	</div>
 </template>

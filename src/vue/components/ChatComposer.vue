@@ -4,6 +4,7 @@ import {
 	FileType,
 	Globe,
 	ImagePlus,
+	Link2,
 	Monitor,
 	SendHorizontal,
 	Settings2,
@@ -11,12 +12,18 @@ import {
 	SlidersHorizontal,
 	Square,
 	Timer,
+	Upload,
 	Video,
-	X,
 } from '@lucide/vue';
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Button } from '@/components/ui/button';
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import {
 	Select,
@@ -28,10 +35,13 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Textarea } from '@/components/ui/textarea';
+import { fileMime, isFileLink, isVideoMime } from '@/lib/files';
 import { attachmentFields, isTextGeneration, isVideoField, parseRatio } from '@/lib/neurals';
 import { useLightbox } from '../composables/useLightbox';
 import { useModels } from '../composables/useModels';
+import { useUploads } from '../composables/useUploads';
 import AspectRatioSelect from './AspectRatioSelect.vue';
+import AttachmentTile from './AttachmentTile.vue';
 import ModelPrice from './ModelPrice.vue';
 
 const props = defineProps({
@@ -47,15 +57,35 @@ const emit = defineEmits(['submit', 'stop']);
 const { t, te } = useI18n();
 const { open: openMedia } = useLightbox();
 const { models, modelOptions, modelControls, modelType, defaultOptions } = useModels();
+const {
+	items: attached,
+	isUploading,
+	hasFailed,
+	itemsOf,
+	add,
+	addLink,
+	remove,
+	retry,
+	clear,
+	resolve,
+} = useUploads();
 
 const prompt = ref('');
 const options = ref({});
 const promptArea = ref(null);
-/** Ссылка, которую сейчас вводят: в options она попадёт только целой */
+/** Ссылка, которую сейчас вводят: во вложения она попадёт только целой */
 const url = ref('');
 /** Поле, ссылку для которого сейчас вводят; null — строки ввода нет */
 const attaching = ref(null);
 const urlField = ref(null);
+/** Один диалог выбора файла на все поля: перед открытием ему проставляют accept */
+const picker = ref(null);
+let picking = null;
+/** Модель, которой принадлежат приложенные файлы: со сменой модели они теряют смысл */
+let attachedFor = '';
+const isDragging = ref(false);
+/** Ссылки на вложения берутся перед самой отправкой — это её незаметная часть */
+const isResolving = ref(false);
 
 /** Подписи у картинок и роликов свои: «ссылка на изображение» и «ссылка на видео» */
 const ATTACH_TEXTS = {
@@ -79,12 +109,8 @@ const promptField = computed(() =>
  */
 const attachments = computed(() => attachmentFields(modelOptions(props.model)));
 
-/** Всё приложенное разом: лента над промптом общая, вид берётся из поля */
-const attached = computed(() =>
-	attachments.value.flatMap((field) =>
-		filesOf(field).map((src) => ({ src, field, isVideo: isVideoField(field) })),
-	),
-);
+/** Поле, до предела которого уже добрали: строка под вложениями объяснит неактивную кнопку */
+const limited = computed(() => attachments.value.find((field) => !canAttachMore(field)) ?? null);
 
 /** Зависимый параметр показываем, только когда заполнен тот, от которого он зависит */
 const fields = computed(() =>
@@ -110,6 +136,10 @@ const priceOptions = computed(() => filledOptions());
 const canSend = computed(
 	() =>
 		(Boolean(prompt.value.trim()) || !needsPrompt.value) &&
+		// Ссылки на файл ещё нет, а сломанное вложение молча выкидывать нельзя
+		!isUploading.value &&
+		!hasFailed.value &&
+		!isResolving.value &&
 		!props.disabled &&
 		!props.sending &&
 		!props.streaming,
@@ -125,35 +155,45 @@ const placeholder = computed(() => {
 // Схема приходит вместе со справочником, поэтому форма пересобирается и при смене модели, и когда он загрузился
 watch([() => props.model, models], () => reset(), { immediate: true });
 
+/**
+ * Ссылки готовых вложений держим и в options: по ним считается цена, и по ним же схема
+ * решает, обязателен ли промпт. К отправке они обновятся — час у ссылки может и выйти.
+ */
+watch(
+	() => attached.value.map((item) => `${item.field}:${item.status}:${item.url}`).join('\n'),
+	syncAttachments,
+);
+
+onUnmounted(() => clear({ discard: true }));
+
 function isFilled(value) {
 	if (Array.isArray(value)) return value.length > 0;
 
 	return value !== '' && value !== null && value !== undefined;
 }
 
-function filesOf(field) {
-	return options.value[field.name] ?? [];
+function syncAttachments() {
+	for (const field of attachments.value) {
+		options.value[field.name] = itemsOf(field.name)
+			.filter((item) => item.status === 'ready')
+			.map((item) => item.url);
+	}
+}
+
+function countOf(field) {
+	return itemsOf(field.name).length;
 }
 
 function canAttachMore(field) {
-	return filesOf(field).length < (field.max ?? Infinity);
+	return countOf(field) < (field.max ?? Infinity);
 }
 
 function attachText(field, kind) {
-	return t(ATTACH_TEXTS[field.type][kind]);
+	return t(ATTACH_TEXTS[field.type][kind], { count: field.max });
 }
 
 function attachIcon(field) {
 	return isVideoField(field) ? Video : ImagePlus;
-}
-
-/** Загрузки файлов на бэкенде нет: провайдер забирает файл по ссылке, поэтому её и просим */
-function isFileUrl(value) {
-	try {
-		return ['http:', 'https:'].includes(new URL(value.trim()).protocol);
-	} catch {
-		return false;
-	}
 }
 
 /** Пропорции показываем рамкой, а не строчками «16:9»: форму видно сразу */
@@ -190,6 +230,14 @@ function reset() {
 	options.value = defaultOptions(props.model);
 	for (const field of attachments.value) options.value[field.name] = [];
 
+	// Сменилась модель — её вложения новой не подойдут, и в хранилище им делать нечего.
+	// Форма пересобирается и от загрузки справочника: тогда вложения остаются на месте
+	if (attachedFor !== props.model) {
+		clear({ discard: true });
+		attachedFor = props.model;
+	}
+	syncAttachments();
+
 	url.value = '';
 	attaching.value = null;
 }
@@ -203,6 +251,68 @@ function clamp(field) {
 		: '';
 }
 
+/** Диалог выбора один: тип файлов и число зависят от поля, для которого его открыли */
+function pickFiles(field) {
+	const input = picker.value;
+	if (!input) return;
+
+	picking = field;
+	input.accept = isVideoField(field) ? 'video/*' : 'image/*';
+	input.multiple = (field.max ?? Infinity) > 1;
+	// Тот же файл, выбранный второй раз подряд, иначе не вызовет change
+	input.value = '';
+	input.click();
+}
+
+function onPicked(event) {
+	if (picking) add(picking, event.target.files);
+	event.target.value = '';
+}
+
+/** Файл кладём в то поле, которое его примет: ролик — к роликам, картинку — к картинкам */
+function fieldFor(file) {
+	const video = isVideoMime(fileMime(file));
+
+	return attachments.value.find((field) => isVideoField(field) === video) ?? null;
+}
+
+function addDropped(files) {
+	const groups = new Map();
+
+	for (const file of files) {
+		const field = fieldFor(file);
+		if (field) groups.set(field, [...(groups.get(field) ?? []), file]);
+	}
+	for (const [field, group] of groups) add(field, group);
+}
+
+function onDragOver(event) {
+	if (props.disabled || !attachments.value.length) return;
+
+	isDragging.value = event.dataTransfer?.types?.includes('Files') ?? false;
+}
+
+// Перетаскивание над содержимым формы — это всё ещё перетаскивание над ней самой
+function onDragLeave(event) {
+	if (!event.currentTarget.contains(event.relatedTarget)) isDragging.value = false;
+}
+
+function onDrop(event) {
+	isDragging.value = false;
+	if (props.disabled || !attachments.value.length) return;
+
+	addDropped(event.dataTransfer?.files ?? []);
+}
+
+/** Скриншот из буфера — тоже вложение: иначе он доедет до модели только через «сохранить как» */
+function onPaste(event) {
+	const files = [...(event.clipboardData?.files ?? [])];
+	if (props.disabled || !files.length || !attachments.value.length) return;
+
+	event.preventDefault();
+	addDropped(files);
+}
+
 async function startAttaching(field) {
 	attaching.value = field;
 	url.value = '';
@@ -211,16 +321,13 @@ async function startAttaching(field) {
 	urlField.value?.$el?.focus();
 }
 
+/** Модель заберёт файл по ссылке сама — грузить его к себе незачем */
 function addAttachment() {
 	const field = attaching.value;
-	if (!field || !isFileUrl(url.value) || !canAttachMore(field)) return;
+	if (!field || !isFileLink(url.value.trim()) || !canAttachMore(field)) return;
 
-	options.value[field.name] = [...filesOf(field), url.value.trim()];
+	addLink(field, url.value.trim());
 	url.value = '';
-}
-
-function removeAttachment({ field, src }) {
-	options.value[field.name] = filesOf(field).filter((item) => item !== src);
 }
 
 /** Уходит только заполненное: пустое поле означает «параметр не задан» */
@@ -236,9 +343,10 @@ function filledOptions() {
 	);
 }
 
-function payload() {
+function payload(files) {
 	return {
 		...filledOptions(),
+		...files,
 		// Пустой промпт не отправляем вовсе: бэкенд проверяет его, только если он пришёл
 		...(prompt.value.trim() ? { prompt: prompt.value.trim() } : {}),
 	};
@@ -252,57 +360,60 @@ function fill(text) {
 
 defineExpose({ fill });
 
-function submit() {
+async function submit() {
 	if (!canSend.value) return;
 
-	emit('submit', payload());
+	isResolving.value = true;
+	let files = null;
+	try {
+		// Модели принимают ссылки, а живут они час: берём их прямо перед отправкой
+		files = await resolve();
+	} finally {
+		isResolving.value = false;
+	}
+	// Какого-то файла уже нет — вложение помечено ошибкой, и запрос без него отправлять нельзя
+	if (!files) return;
+
+	emit('submit', payload(files));
 	prompt.value = '';
+	clear();
 	for (const field of attachments.value) options.value[field.name] = [];
 }
 </script>
 
 <template>
 	<form
-		class="grid gap-3 rounded-xl border border-border bg-card/70 p-3 supports-backdrop-filter:backdrop-blur-md"
+		class="relative grid gap-3 rounded-xl border border-border bg-card/70 p-3 supports-backdrop-filter:backdrop-blur-md"
 		@submit.prevent="submit"
+		@dragover.prevent="onDragOver"
+		@dragleave="onDragLeave"
+		@drop.prevent="onDrop"
 	>
+		<!-- Диалог выбора файла: свой вид у него не показывается, кнопки открывают этот -->
+		<input ref="picker" type="file" class="hidden" @change="onPicked" />
+
+		<div
+			v-if="isDragging"
+			class="pointer-events-none absolute inset-0 z-10 grid place-items-center rounded-xl border-2 border-dashed border-primary bg-background/85 text-sm font-medium"
+		>
+			{{ t('files.dropHere') }}
+		</div>
+
 		<!-- Вложения выше промпта: они могут его заменить, а не только дополнить -->
 		<div v-if="attached.length" class="flex flex-wrap gap-2">
-			<div v-for="item in attached" :key="item.src" class="relative">
-				<!-- Ролик показывает первый кадр: проигрывать его тут негде, а узнать файл надо -->
-				<button
-					v-if="item.isVideo"
-					type="button"
-					class="block cursor-zoom-in"
-					@click="openMedia(item.src, '', { video: true })"
-				>
-					<video
-						:src="item.src"
-						muted
-						playsinline
-						preload="metadata"
-						class="pointer-events-none size-14 rounded-lg border border-border object-cover"
-					/>
-				</button>
-				<button v-else type="button" class="block cursor-zoom-in" @click="openMedia(item.src)">
-					<img
-						:src="item.src"
-						alt=""
-						class="size-14 rounded-lg border border-border object-cover"
-					/>
-				</button>
-
-				<Button
-					variant="secondary"
-					size="icon"
-					class="absolute -top-1.5 -right-1.5 size-5 rounded-full"
-					:aria-label="t('chats.attachRemove')"
-					@click="removeAttachment(item)"
-				>
-					<X class="size-3" />
-				</Button>
-			</div>
+			<AttachmentTile
+				v-for="item in attached"
+				:key="item.key"
+				:item="item"
+				@open="openMedia(item.preview, '', { video: item.isVideo })"
+				@retry="retry(item)"
+				@remove="remove(item)"
+			/>
 		</div>
+
+		<p v-if="limited" class="text-xs text-muted-foreground">
+			{{ attachText(limited, 'limit') }}
+		</p>
 
 		<Textarea
 			ref="promptArea"
@@ -312,6 +423,7 @@ function submit() {
 			:disabled="disabled"
 			class="max-h-32 min-h-9 resize-none border-0 px-0 py-2 shadow-none focus-visible:ring-0 dark:bg-transparent"
 			@keydown.enter.exact.prevent="submit"
+			@paste="onPaste"
 		/>
 
 		<div v-if="attaching" class="grid gap-1.5">
@@ -331,17 +443,14 @@ function submit() {
 					type="button"
 					size="sm"
 					variant="secondary"
-					:disabled="!isFileUrl(url)"
+					:disabled="!isFileLink(url.trim())"
 					@click="addAttachment"
 				>
 					{{ t('chats.attachAdd') }}
 				</Button>
 			</div>
 
-			<p v-if="!canAttachMore(attaching)" class="text-xs text-muted-foreground">
-				{{ attachText(attaching, 'limit') }}
-			</p>
-			<p v-else-if="url && !isFileUrl(url)" class="text-xs text-destructive">
+			<p v-if="url && !isFileLink(url.trim())" class="text-xs text-destructive">
 				{{ t('validation.url') }}
 			</p>
 		</div>
@@ -422,20 +531,38 @@ function submit() {
 			<!-- Действия держатся вместе у правого края и переносятся тоже вместе -->
 			<div class="ml-auto flex items-center gap-2">
 				<!-- Кнопка на каждый список: картинки и ролики модель принимает разными полями -->
-				<Button
-					v-for="field in attachments"
-					:key="field.name"
-					type="button"
-					:variant="attaching?.name === field.name ? 'secondary' : 'outline'"
-					size="icon"
-					:disabled="disabled"
-					:title="attachText(field, 'button')"
-					:aria-label="attachText(field, 'button')"
-					class="size-8 rounded-full"
-					@click="attaching?.name === field.name ? (attaching = null) : startAttaching(field)"
-				>
-					<component :is="attachIcon(field)" class="size-4" />
-				</Button>
+				<Tooltip v-for="field in attachments" :key="field.name">
+					<TooltipTrigger as-child>
+						<span class="inline-flex">
+							<DropdownMenu>
+								<DropdownMenuTrigger as-child>
+									<Button
+										type="button"
+										variant="outline"
+										size="icon"
+										:disabled="disabled || !canAttachMore(field)"
+										:aria-label="attachText(field, 'button')"
+										class="size-8 rounded-full"
+									>
+										<component :is="attachIcon(field)" class="size-4" />
+									</Button>
+								</DropdownMenuTrigger>
+
+								<DropdownMenuContent align="end">
+									<DropdownMenuItem @select="pickFiles(field)">
+										<Upload class="size-4" />
+										{{ t('files.pick') }}
+									</DropdownMenuItem>
+									<DropdownMenuItem @select="startAttaching(field)">
+										<Link2 class="size-4" />
+										{{ t('files.paste') }}
+									</DropdownMenuItem>
+								</DropdownMenuContent>
+							</DropdownMenu>
+						</span>
+					</TooltipTrigger>
+					<TooltipContent>{{ attachText(field, 'button') }}</TooltipContent>
+				</Tooltip>
 
 				<Button
 					v-if="streaming"

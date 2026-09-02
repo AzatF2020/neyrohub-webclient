@@ -4,10 +4,10 @@ import { computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { formatTime } from '@/lib/datetime';
 import { MessageRole, TaskStatus, isPending, readAttachments } from '@/lib/neurals';
-import { useLightbox } from '../composables/useLightbox';
 import { useMarkdown } from '../composables/useMarkdown';
 import { useMessageParams } from '../composables/useMessageParams';
 import { useModels } from '../composables/useModels';
+import MessageAttachments from './MessageAttachments.vue';
 
 /** Одна реплика текстового чата: запись chat_messages с ролью и текстом */
 const props = defineProps({
@@ -16,7 +16,6 @@ const props = defineProps({
 });
 
 const { t } = useI18n();
-const { open } = useLightbox();
 const { modelOptions } = useModels();
 const { isReady: isMarkdownReady, ensureLoaded: ensureMarkdown, toHtml } = useMarkdown();
 const { summary, hint } = useMessageParams(
@@ -64,31 +63,7 @@ const usage = computed(() => {
 	<!-- Запрос человека -->
 	<article v-if="isUser" class="mt-5 flex justify-end first:mt-0">
 		<div class="bubble-width grid justify-items-end gap-1.5">
-			<div v-if="attachments.length" class="flex flex-wrap justify-end gap-1.5">
-				<button
-					v-for="item in attachments"
-					:key="item.url"
-					type="button"
-					class="cursor-zoom-in"
-					@click="open(item.url, text, { video: item.isVideo })"
-				>
-					<video
-						v-if="item.isVideo"
-						:src="item.url"
-						muted
-						playsinline
-						preload="metadata"
-						class="pointer-events-none size-16 rounded-lg border border-border object-cover"
-					/>
-					<img
-						v-else
-						:src="item.url"
-						:alt="text"
-						loading="lazy"
-						class="size-16 rounded-lg border border-border object-cover"
-					/>
-				</button>
-			</div>
+			<MessageAttachments :items="attachments" :caption="text" />
 
 			<p
 				v-if="text"

@@ -5,10 +5,12 @@ import { useI18n } from 'vue-i18n';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatTime } from '@/lib/datetime';
 import { GenerationType, TaskStatus, isPending, readAttachments, readOutput } from '@/lib/neurals';
+import { useMediaLinks } from '../composables/useFileLinks';
 import { useLightbox } from '../composables/useLightbox';
 import { useMarkdown } from '../composables/useMarkdown';
 import { useMessageParams } from '../composables/useMessageParams';
 import { useModels } from '../composables/useModels';
+import MessageAttachments from './MessageAttachments.vue';
 import ResultMedia from './ResultMedia.vue';
 
 /** Одна генерация: запрос и её результат — это одна запись в messages */
@@ -29,6 +31,8 @@ const { summary, hint } = useMessageParams(
 );
 
 const result = computed(() => readOutput(props.message.output));
+/** В output лежат либо идентификаторы файлов, либо ссылки провайдера — ссылками станут оба */
+const { urls, isResolving, refresh } = useMediaLinks(() => result.value.items);
 const pending = computed(() => isPending(props.message.status));
 const failed = computed(() => props.message.status === TaskStatus.Failed);
 const isVideo = computed(() => props.type === GenerationType.Videos);
@@ -60,32 +64,7 @@ watch(() => result.value.text, (text) => text && void ensureMarkdown(), { immedi
 	<article class="grid gap-3">
 		<div class="flex justify-end">
 			<div class="bubble-width grid justify-items-end gap-1.5">
-				<div v-if="attachments.length" class="flex flex-wrap justify-end gap-1.5">
-					<button
-						v-for="item in attachments"
-						:key="item.url"
-						type="button"
-						class="cursor-zoom-in"
-						@click="open(item.url, prompt, { video: item.isVideo })"
-					>
-						<!-- Референсный ролик показывает первый кадр; смотреть его — в просмотрщике -->
-						<video
-							v-if="item.isVideo"
-							:src="item.url"
-							muted
-							playsinline
-							preload="metadata"
-							class="pointer-events-none size-16 rounded-lg border border-border object-cover"
-						/>
-						<img
-							v-else
-							:src="item.url"
-							:alt="prompt"
-							loading="lazy"
-							class="size-16 rounded-lg border border-border object-cover"
-						/>
-					</button>
-				</div>
+				<MessageAttachments :items="attachments" :caption="prompt" />
 
 				<!-- Промпт бывает пустым: для image-to-video хватает и одних вложений -->
 				<p
@@ -128,15 +107,30 @@ watch(() => result.value.text, (text) => text && void ensureMarkdown(), { immedi
 				<p v-else class="text-sm whitespace-pre-wrap">{{ result.text }}</p>
 			</div>
 
-			<div v-else-if="result.urls.length" class="flex flex-wrap gap-2">
-				<ResultMedia
-					v-for="url in result.urls"
-					:key="url"
-					:src="url"
-					:video="isVideo"
-					:alt="prompt"
-					@open="open(url, prompt)"
-				/>
+			<div v-else-if="result.items.length" class="flex flex-wrap gap-2">
+				<template v-for="(url, index) in urls" :key="result.items[index]">
+					<ResultMedia
+						v-if="url"
+						:src="url"
+						:video="isVideo"
+						:alt="prompt"
+						@open="open(url, prompt)"
+						@refresh="refresh(index)"
+					/>
+
+					<!-- Ссылку на файл ещё не отдали: место под него держим тех же пропорций -->
+					<Skeleton
+						v-else-if="isResolving"
+						class="w-full max-w-64 rounded-xl"
+						:style="{ aspectRatio: ratio }"
+					/>
+					<p
+						v-else
+						class="rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground"
+					>
+						{{ t('files.unavailable') }}
+					</p>
+				</template>
 			</div>
 
 			<p v-else class="text-sm text-muted-foreground">{{ t('chats.emptyResult') }}</p>

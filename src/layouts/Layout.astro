@@ -26,6 +26,7 @@ const {
 		<meta name="description" content={description} />
 		<title>{title}</title>
 		<Font cssVariable="--font-ui" preload />
+		<Font cssVariable="--font-display" preload />
 		<script is:inline>
 			// До первой отрисовки, иначе тёмная тема моргнёт белым
 			const stored = localStorage.getItem('theme');

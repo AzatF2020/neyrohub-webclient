@@ -11,7 +11,7 @@ const props = defineProps({
 	alt: { type: String, default: '' },
 });
 
-const emit = defineEmits(['open']);
+const emit = defineEmits(['open', 'refresh']);
 
 const { t } = useI18n();
 
@@ -30,12 +30,15 @@ const isLoaded = ref(false);
 const isBroken = ref(false);
 const isSaving = ref(false);
 let timer = null;
+/** За свежей ссылкой просим один раз на файл: помогает она только от истёкшего часа */
+let asked = false;
 
 watch(() => props.src, restart, { immediate: true });
 onUnmounted(() => clearTimeout(timer));
 
 function restart() {
 	clearTimeout(timer);
+	asked = false;
 	attempt.value = 0;
 	failures.value = 0;
 	isLoaded.value = false;
@@ -57,6 +60,12 @@ async function save() {
 function onError() {
 	failures.value += 1;
 
+	// Второй промах подряд: ссылка на файл живёт час и могла истечь — просим родителя обновить её
+	if (failures.value === 2 && !asked) {
+		asked = true;
+		emit('refresh');
+	}
+
 	if (failures.value > RETRIES) {
 		isBroken.value = true;
 		return;
@@ -66,6 +75,7 @@ function onError() {
 }
 
 function retry() {
+	emit('refresh');
 	failures.value = 0;
 	isBroken.value = false;
 	attempt.value += 1;

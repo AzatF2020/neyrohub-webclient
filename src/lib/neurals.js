@@ -65,9 +65,10 @@ export async function fetchModels(search) {
 }
 
 /**
- * Поля-вложения в схеме модели. Загрузки файлов на бэкенде нет: и картинки, и видео
- * едут ссылками, провайдер скачивает их сам. Полей может быть несколько — minimax-h3
- * принимает референсные картинки и ролики отдельными списками и в одном запросе.
+ * Поля-вложения в схеме модели. Модели принимают ссылки, а не идентификаторы файлов:
+ * файл сначала уезжает в хранилище (`src/lib/files.js`), и в options уходит ссылка на
+ * него. Полей может быть несколько — minimax-h3 принимает референсные картинки и ролики
+ * отдельными списками и в одном запросе.
  */
 const ATTACHMENT_TYPES = ['image_list', 'video_list'];
 
@@ -108,14 +109,19 @@ export function parseRatio(value) {
 }
 
 /**
- * Результат генерации: у изображений и видео это массив ссылок, у текста — { message }.
+ * Результат генерации: у изображений и видео это массив, у текста — { message }.
  * resultUrls остаётся у сообщений, записанных до перехода на массив, и в редком случае,
  * когда провайдер вернул ответ без ссылок и бэкенд отдал его как есть.
+ *
+ * В массиве лежат идентификаторы файлов нашего хранилища либо ссылки провайдера — второе
+ * приходит в событии сокета (бэкенд перекладывает файлы к себе через секунду-другую после
+ * него) и остаётся навсегда у задачи, часть файлов которой переложить не удалось. Оба
+ * формата превращает в ссылки useMediaLinks, различает их isFileLink в `src/lib/files.js`.
  */
 export function readOutput(output) {
-	if (Array.isArray(output)) return { urls: output, text: '' };
-	if (typeof output?.message === 'string') return { urls: [], text: output.message };
-	if (Array.isArray(output?.resultUrls)) return { urls: output.resultUrls, text: '' };
+	if (Array.isArray(output)) return { items: output, text: '' };
+	if (typeof output?.message === 'string') return { items: [], text: output.message };
+	if (Array.isArray(output?.resultUrls)) return { items: output.resultUrls, text: '' };
 
-	return { urls: [], text: '' };
+	return { items: [], text: '' };
 }

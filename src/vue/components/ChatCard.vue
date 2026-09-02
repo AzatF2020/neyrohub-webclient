@@ -16,6 +16,7 @@ import {
 	readOutput,
 } from '@/lib/neurals';
 import { toPlainText } from '@/lib/plain-text';
+import { useMediaLinks } from '../composables/useFileLinks';
 import { useMarkdown } from '../composables/useMarkdown';
 import { useModels } from '../composables/useModels';
 import ModelLogo from './ModelLogo.vue';
@@ -38,8 +39,13 @@ const { isReady: isMarkdownReady, ensureLoaded: ensureMarkdown, toHtml } = useMa
 const last = computed(() => props.chat.lastMessage ?? null);
 const result = computed(() => readOutput(last.value?.output));
 
-/** Обложка чата — первый результат последней генерации */
-const cover = computed(() => result.value.urls[0] ?? '');
+/**
+ * Обложка чата — первый результат последней генерации. В `output` лежит идентификатор
+ * файла или ссылка провайдера; за ссылкой на файл сходит useMediaLinks, остальные
+ * результаты плитке не нужны — их она и не спрашивает.
+ */
+const { urls: coverUrls } = useMediaLinks(() => result.value.items.slice(0, 1));
+const cover = computed(() => coverUrls.value[0] ?? '');
 const isVideo = computed(() => props.chat.type === GenerationType.Videos);
 /** У переписки обложки нет: её место занимает последняя реплика */
 const isChat = computed(() => isTextGeneration(props.chat.type));

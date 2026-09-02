@@ -15,16 +15,31 @@ export default defineConfig({
 
 	integrations: [vue()],
 
-	// Шрифт отдаётся с нашего домена: без запроса к Google Fonts и без скачка при загрузке.
-	// Переменная названа нейтрально — сменить гарнитуру можно правкой одного name.
-	// Кириллица обязательна, интерфейс русский; styles только normal — курсива у Manrope нет,
-	// и просить его значило бы качать файлы, которых не существует.
+	// Шрифты отдаются с нашего домена: без запроса к Google Fonts и без скачка при загрузке.
+	// Переменные названы нейтрально — сменить гарнитуру можно правкой одного name.
+	// Кириллица обязательна, интерфейс русский; styles только normal — курсива ни у Manrope,
+	// ни у Montserrat в интерфейсе не встречается, и просить его значило бы качать файлы зря.
 	fonts: [
 		{
+			// Основной текст интерфейса
 			provider: fontProviders.google(),
 			name: 'Manrope',
 			cssVariable: '--font-ui',
 			weights: [400, 500, 600, 700, 800, 900],
+			styles: ['normal'],
+			subsets: ['latin', 'cyrillic'],
+			fallbacks: ['system-ui', 'sans-serif'],
+		},
+		{
+			// Заголовки: сюда ведёт --font-heading из global.css.
+			// Диапазон, а не список ступеней: Google отдаёт Montserrat вариативным файлом,
+			// и перечисление весов размножило бы один и тот же файл на четыре адреса —
+			// каждый со своим preload. Верх — 900 (font-black первого экрана чата),
+			// низ — 500, базовая насыщенность нашей шкалы.
+			provider: fontProviders.google(),
+			name: 'Montserrat',
+			cssVariable: '--font-display',
+			weights: ['500 900'],
 			styles: ['normal'],
 			subsets: ['latin', 'cyrillic'],
 			fallbacks: ['system-ui', 'sans-serif'],

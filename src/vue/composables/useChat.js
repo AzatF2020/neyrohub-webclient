@@ -15,6 +15,13 @@ const DRAFT_ID = 'draft';
 const POLL_INTERVAL = 6000;
 
 /**
+ * Через сколько перечитать сообщение готовой задачи. Событие о завершении уходит в сокет
+ * сразу, со ссылками провайдера, а свои файлы бэкенд подставляет в output через секунду-другую,
+ * когда скачает их. Пришедшее из сокета — не окончательное состояние записи.
+ */
+const OUTPUT_DELAY = 2500;
+
+/**
  * Черновик это или сохранённая запись. Лента по этому признаку решает, проигрывать ли
  * появление: анимация нужна ровно один раз — когда запрос показался в ответ на отправку.
  * Когда бэкенд подтвердит запись, черновик подменится ею уже без анимации.
@@ -55,6 +62,7 @@ export function useChat() {
 	let page = 1;
 	let unsubscribe = null;
 	let timer = null;
+	let outputTimer = null;
 	let controller = null;
 
 	/** Лента идёт по возрастанию id, а бэкенд отдаёт страницы от свежих к старым */
@@ -110,6 +118,11 @@ export function useChat() {
 		if (!isPending(event.status)) {
 			const { [event.taskId]: _done, ...rest } = progress.value;
 			progress.value = rest;
+		}
+		// Результат из сокета — ещё не окончательный: файлы бэкенд перекладывает к себе после него
+		if (event.status === TaskStatus.Success) {
+			clearTimeout(outputTimer);
+			outputTimer = setTimeout(() => void reload().catch(() => {}), OUTPUT_DELAY);
 		}
 		setLastMessage(chat.value.id, message);
 	}
@@ -168,6 +181,8 @@ export function useChat() {
 		unsubscribe = null;
 		clearInterval(timer);
 		timer = null;
+		clearTimeout(outputTimer);
+		outputTimer = null;
 		stop();
 
 		chat.value = null;
